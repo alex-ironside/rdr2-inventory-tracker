@@ -25,6 +25,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Configure GitHub Pages
+        # enablement: true creates/enables the Pages site via the API on first
+        # run, so the deploy step no longer 404s with "Ensure GitHub Pages has
+        # been enabled". Requires the pages:write + id-token:write permissions
+        # already granted above. This makes the workflow self-provisioning.
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
