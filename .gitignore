@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dev-dist/
+
+# Local env / secrets (never commit real Firebase creds or service accounts)
+.env
+.env.local
+.env.*.local
+*serviceAccount*.json
+firebase-debug.log
+firestore-debug.log
+.firebase/
+
+# Test / coverage
+coverage/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.log
