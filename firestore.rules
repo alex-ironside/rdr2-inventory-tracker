@@ -1,0 +1,52 @@
+rules_version = '2';
+
+// Security model (ISO/IEC 27001 A.9 access control, principle of least privilege):
+//  * All access requires an authenticated user (no anonymous access, no public reads).
+//  * A user may only read or write iterations they own (ownerUid == their uid).
+//  * The owner field is immutable and must match the caller on create.
+//  * Incoming documents are schema-validated to reject malformed / oversized writes.
+//  * Everything not explicitly allowed is denied by the final catch-all.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function ownsExisting() {
+      return isSignedIn() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    function validTitle(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() <= 80;
+    }
+
+    // Validate the shape of a created/updated iteration document.
+    function validNewIteration(data) {
+      return data.ownerUid == request.auth.uid
+        && validTitle(data)
+        && data.delivered is map
+        && data.freeze is map
+        && data.history is list
+        && data.keys().hasOnly(['ownerUid', 'title', 'delivered', 'freeze', 'history', 'createdAt', 'updatedAt']);
+    }
+
+    match /iterations/{iterationId} {
+      allow read: if ownsExisting();
+
+      allow create: if isSignedIn() && validNewIteration(request.resource.data);
+
+      // Owner cannot be reassigned; updated document must remain valid.
+      allow update: if ownsExisting()
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && validNewIteration(request.resource.data);
+
+      allow delete: if ownsExisting();
+    }
+
+    // Explicit default deny for anything not matched above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

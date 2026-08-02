@@ -1,0 +1,49 @@
+name: Deploy Firestore rules
+
+# Manual deploy of the security rules + indexes that protect the Firebase
+# backend. Run this whenever firestore.rules or firestore.indexes.json changes.
+#
+# Requires two repository secrets:
+#   FIREBASE_PROJECT_ID         - your project id
+#   FIREBASE_SERVICE_ACCOUNT    - JSON key of a service account with the
+#                                 "Firebase Rules Admin" + "Cloud Datastore
+#                                 Index Admin" roles (least privilege).
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - firestore.rules
+      - firestore.indexes.json
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-rules:
+    name: Deploy rules & indexes
+    runs-on: ubuntu-latest
+    # Skip automatically if the service account secret isn't configured.
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.FIREBASE_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Write service account credentials
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Deploy Firestore rules and indexes
+        run: |
+          npx --yes firebase-tools@13 deploy \
+            --only firestore:rules,firestore:indexes \
+            --project "$FIREBASE_PROJECT_ID" \
+            --non-interactive
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}

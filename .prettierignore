@@ -1,0 +1,7 @@
+dist
+dev-dist
+coverage
+node_modules
+src/lib/seed.ts
+package-lock.json
+*.md
