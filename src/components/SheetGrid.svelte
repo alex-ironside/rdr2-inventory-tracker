@@ -565,6 +565,22 @@
     .scroll {
       margin: 0 0.4rem 0.4rem;
     }
+    /* The Material column is sticky (pinned left). On a phone its default
+       content-width can exceed the viewport, so the frozen column covers the
+       whole screen and the tracked columns can never be scrolled into view.
+       Cap it and let long material names wrap so the data columns stay
+       reachable. */
+    th.rowhead {
+      max-width: 46vw;
+      white-space: normal;
+    }
+    .rowhead-label {
+      overflow-wrap: anywhere;
+    }
+    .rowhead-inner {
+      flex-wrap: wrap;
+      gap: 0.25rem 0.35rem;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {

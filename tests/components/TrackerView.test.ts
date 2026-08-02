@@ -1,10 +1,31 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/svelte';
+import * as XLSX from '@e965/xlsx';
 import TrackerView from '../../src/components/TrackerView.svelte';
 import { session } from '../../src/lib/session.svelte';
 import { LocalBackend } from '../../src/lib/storage';
 import { SHEETS } from '../../src/lib/seed';
 import type { DeliveredMap } from '../../src/lib/types';
+
+/** Build a real inventory .xlsx File (with an arrayBuffer() jsdom shim). */
+function inventoryXlsx(rows: unknown[][]): File {
+  const header = [
+    'Material',
+    'Biome / Location',
+    'You Have',
+    'Satchels',
+    'Camp',
+    'Trapper Clothes',
+    'Trapper Saddles'
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header, ...rows]), 'Inventory Tracker');
+  const written = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer | Uint8Array;
+  const ab = written instanceof Uint8Array ? written.buffer : written;
+  const file = new File([ab], 'tracker.xlsx');
+  Object.defineProperty(file, 'arrayBuffer', { value: async () => ab });
+  return file;
+}
 
 async function makeIteration(title = 'Test Run') {
   const it = await session.backend!.createIteration(title);
@@ -191,6 +212,56 @@ describe('TrackerView', () => {
     );
     unmount(); // pending debounce timer should flush immediately
     await waitFor(() => expect(spy).toHaveBeenCalled());
+  });
+
+  describe('Excel import', () => {
+    it('merges uploaded progress into the board and records an undoable checkpoint', async () => {
+      const id = await makeIteration();
+      const spy = vi.spyOn(session.backend!, 'saveProgress');
+      render(TrackerView, { props: { iterationId: id, onBack: vi.fn() } });
+      await screen.findByRole('button', { name: /Inventory Tracker/ });
+
+      const file = inventoryXlsx([['Alligator Skin', 'Swamps', 1, 0, 1, 0, 1]]);
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      await fireEvent.change(input, { target: { files: [file] } });
+
+      // Alligator's Camp (required 1) is now collected via the import.
+      const row = screen.getByText('Alligator Skin').closest('tr')!;
+      await waitFor(() => {
+        const camp = within(row).getByRole('spinbutton', {
+          name: /Alligator Skin — Camp delivered/
+        }) as HTMLInputElement;
+        expect(camp.value).toBe('1');
+      });
+
+      // A checkpoint was recorded so the import can be rolled back.
+      expect(await screen.findByRole('button', { name: /History \(1\)/ })).toBeInTheDocument();
+      await waitFor(() => expect(spy).toHaveBeenCalled());
+    });
+
+    it('keeps the higher value when importing over existing progress (non-destructive)', async () => {
+      const id = await makeIteration();
+      // Pre-seed a higher Camp value than the import will supply.
+      await session.backend!.saveProgress(id, {
+        delivered: { inventory: { 'inventory-6': { camp: 5 } } },
+        freeze: { cols: {}, rows: {} },
+        history: []
+      });
+      render(TrackerView, { props: { iterationId: id, onBack: vi.fn() } });
+      await screen.findByRole('button', { name: /Inventory Tracker/ });
+
+      const file = inventoryXlsx([['Alligator Skin', 'Swamps', 1, 0, 1, 0, 1]]);
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      await fireEvent.change(input, { target: { files: [file] } });
+
+      const row = screen.getByText('Alligator Skin').closest('tr')!;
+      // Existing 5 wins over the imported 1 — no progress lost.
+      await screen.findByRole('button', { name: /History \(1\)/ });
+      const camp = within(row).getByRole('spinbutton', {
+        name: /Alligator Skin — Camp delivered/
+      }) as HTMLInputElement;
+      expect(camp.value).toBe('5');
+    });
   });
 
   describe('bulk check + history', () => {

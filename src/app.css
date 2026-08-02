@@ -52,6 +52,11 @@ body {
   height: 100dvh;
   display: flex;
   flex-direction: column;
+  /* Keep content clear of the iOS notch / status bar and the home indicator
+     when installed as a full-screen PWA (viewport-fit=cover + translucent
+     status bar). Resolves to 0 where there are no insets. */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 h1,
