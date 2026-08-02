@@ -395,4 +395,39 @@
   .tab.active .tab-badge {
     color: var(--text);
   }
+
+  /* --- Mobile: keep the header controls usable on a narrow screen --- */
+  @media (max-width: 640px) {
+    .topbar {
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      padding: 0.5rem 0.7rem;
+    }
+    .left,
+    .right {
+      gap: 0.5rem;
+    }
+    .title-btn {
+      font-size: 1.05rem;
+    }
+    .ttl {
+      max-width: 60vw;
+    }
+    .title-edit {
+      width: min(70vw, 400px);
+    }
+    /* The save state and cloud/offline mode are the signals that matter on a
+       phone; the full "Updated …" timestamp is redundant with them and just
+       forces the header to overflow, so drop it here. */
+    .dates {
+      display: none;
+    }
+    .save-pill {
+      min-width: 0;
+    }
+    .tabs {
+      padding: 0.4rem 0.5rem 0;
+      -webkit-overflow-scrolling: touch;
+    }
+  }
 </style>

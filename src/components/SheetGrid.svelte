@@ -339,6 +339,8 @@
   .scroll {
     flex: 1;
     overflow: auto;
+    /* Momentum scrolling for the grid on iOS. */
+    -webkit-overflow-scrolling: touch;
     margin: 0 0.5rem 0.5rem;
     border: 1px solid var(--line-soft);
     border-radius: 8px;
@@ -535,6 +537,34 @@
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
+  }
+
+  /* Touch devices: the freeze pin and the check/reset buttons live in dense
+     headers, so give them finger-sized hit areas. */
+  @media (pointer: coarse) {
+    .act {
+      width: 1.9rem;
+      height: 1.9rem;
+      font-size: 0.85rem;
+    }
+    .pin {
+      font-size: 0.9rem;
+      padding: 0.35rem;
+    }
+    .bool-cell input {
+      width: 1.4rem;
+      height: 1.4rem;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .toolbar {
+      padding: 0.5rem 0.7rem;
+      gap: 0.5rem;
+    }
+    .scroll {
+      margin: 0 0.4rem 0.4rem;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {

@@ -23,6 +23,9 @@ These were agreed for the project and must be followed for every change:
 5. **Security to ISO standards** — ISO/IEC 27001/27002 controls (see _Security_).
 6. Keep it **lint-clean and formatted** (ESLint + Prettier) and **type-clean**
    (`svelte-check`).
+7. **Mobile-friendly / responsive** — the app must be fully usable on a phone,
+   not just desktop (see _Responsive design_). Test every UI change at a narrow
+   viewport, not only on desktop.
 
 ## Commands
 
@@ -161,6 +164,34 @@ covered by a meaningful test, it usually shouldn't exist.
 
 When adding UI, keep these invariants. `eslint-plugin-svelte` a11y rules are on;
 don't blanket-disable them — justify any `svelte-ignore` inline.
+
+## Responsive design (mobile-first)
+
+The app is used on phones as much as desktop, so **mobile must be a
+first-class target, never an afterthought.** Keep these invariants:
+
+- **Real viewport units** — the app shell uses `100dvh` (with a `100vh`
+  fallback) so it isn't clipped behind mobile browser chrome. Don't reintroduce
+  bare `100vh` for full-height layout.
+- **No horizontal page scroll** — the body must never scroll sideways. Wide
+  content (the tracker table) scrolls inside its own `.scroll` region, which is
+  focusable/keyboard-scrollable; the page around it stays put (`body {
+  overflow-x: hidden }`).
+- **Touch targets** — interactive controls get finger-sized hit areas on touch
+  devices via `@media (pointer: coarse)` (steppers, freeze pins, check/reset
+  buttons, checkboxes, `.btn`/`.btn-ghost`). Don't ship desktop-only ~20px tap
+  targets.
+- **No iOS focus-zoom** — form fields are ≥16px on touch devices so focusing an
+  input doesn't trigger Safari's auto-zoom.
+- **Narrow-screen layout** — headers/toolbars wrap or drop redundant info
+  (e.g. the tracker hides the "Updated …" timestamp on `max-width: 640px`,
+  since the save pill and mode pill already convey state); multi-control forms
+  stack instead of squeezing. Breakpoint convention: `@media (max-width: 640px)`
+  for layout, `@media (pointer: coarse)` for touch ergonomics.
+- **Testing** — the Playwright suite runs every e2e test under a `mobile-chrome`
+  (Pixel 5) project as well as desktop, and `e2e/mobile.spec.ts` asserts the
+  mobile-specific invariants (no horizontal page scroll, usable steppers). Keep
+  both green.
 
 ## Security (ISO/IEC 27001 / 27002)
 
