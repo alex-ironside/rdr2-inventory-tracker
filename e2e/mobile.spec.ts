@@ -59,9 +59,11 @@ test('the phone shows the searchable card list instead of the grid', async ({ pa
   await expect(page.locator('.scroll')).toHaveCount(0);
   await expect(page.locator('table')).toHaveCount(0);
 
-  // Search narrows the list to a single material.
+  // Search narrows the list to a single material. Match the card name exactly
+  // so the locator doesn't also resolve the enclosing card button (whose text
+  // includes the name plus the count and status).
   await page.getByLabel('Search Inventory Tracker').fill('Alligator');
-  await expect(page.getByText('Alligator Skin')).toBeVisible();
+  await expect(page.getByText('Alligator Skin', { exact: true })).toBeVisible();
   await expectNoHorizontalPageScroll(page);
 });
 
@@ -85,8 +87,9 @@ test('card steppers are large enough to tap and work on touch', async ({ page })
 
   await page.getByLabel('Search Inventory Tracker').fill('Alligator');
   const card = page.locator('.mat-card', { hasText: 'Alligator Skin' });
-  // Tap the card to expand its per-use steppers.
-  await card.getByText('Alligator Skin').tap();
+  // Tap the card name (exact, to avoid also matching the enclosing button) to
+  // expand its per-use steppers.
+  await card.getByText('Alligator Skin', { exact: true }).tap();
 
   const inc = card.getByRole('button', { name: /Increase Alligator Skin — Satchels delivered/ });
 
