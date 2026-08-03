@@ -39,7 +39,11 @@ export default defineConfig({
     {
       // Mobile viewport + touch emulation. Uses a Chromium-based device profile
       // so it runs against the pre-installed Chromium (no WebKit binary needed).
+      // On a phone the tracker renders the card view, not the wide grid, so this
+      // project runs only the phone-specific spec; the grid-driven journeys
+      // (offline-flow, import) are desktop-only and run under `chromium`.
       name: 'mobile-chrome',
+      testMatch: /mobile\.spec\.ts$/,
       use: {
         ...devices['Pixel 5'],
         launchOptions
