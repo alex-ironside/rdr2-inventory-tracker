@@ -100,9 +100,7 @@ describe('ImportButton', () => {
     const onImport = vi.fn();
     render(ImportButton, { props: { onImport, hideDelayMs: 40 } });
 
-    await select(
-      xlsxFile([INV_HEADER, ['Alligator Skin', 'Swamps', 1, 0, 1, 0, 1]])
-    );
+    await select(xlsxFile([INV_HEADER, ['Alligator Skin', 'Swamps', 1, 0, 1, 0, 1]]));
 
     // Confirmation appears…
     const status = await screen.findByRole('status');

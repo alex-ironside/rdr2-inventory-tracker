@@ -301,8 +301,12 @@ describe('filterCards', () => {
 
   it('filters by query and status together', () => {
     const cards = buildCards(inv, delivered);
-    expect(filterCards(cards, { query: 'deer', filter: 'all' }).map((c) => c.rowId)).toEqual(['r2']);
-    expect(filterCards(cards, { query: '', filter: 'partial' }).map((c) => c.rowId)).toEqual(['r1']);
+    expect(filterCards(cards, { query: 'deer', filter: 'all' }).map((c) => c.rowId)).toEqual([
+      'r2'
+    ]);
+    expect(filterCards(cards, { query: '', filter: 'partial' }).map((c) => c.rowId)).toEqual([
+      'r1'
+    ]);
     expect(filterCards(cards, { query: '', filter: 'done' })).toEqual([]);
   });
 });

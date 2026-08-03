@@ -44,9 +44,7 @@
       <span class="meter" aria-hidden="true"><i style="width:{percent}%"></i></span>
     </span>
     <span class="right">
-      <span class="count"
-        >{item.totals.have}<small>/{item.totals.needed}</small></span
-      >
+      <span class="count">{item.totals.have}<small>/{item.totals.needed}</small></span>
       <span class="pill">{status.text}</span>
     </span>
   </button>

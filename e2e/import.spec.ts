@@ -89,7 +89,10 @@ test('import populates the dedicated Satchels tab from collected pelts', async (
 
   // Deer Pelt is the first ingredient of every Pearson satchel; the 7 collected
   // fill each satchel's Deer requirement. Open the Satchels tab and check one.
-  await page.locator('nav.tabs').getByRole('button', { name: /Satchels/ }).click();
+  await page
+    .locator('nav.tabs')
+    .getByRole('button', { name: /Satchels/ })
+    .click();
   const tonics = page.locator('tr', { hasText: 'Tonics Satchel' }).first();
   await expect(
     tonics.getByRole('spinbutton', { name: /Tonics Satchel — Qty delivered/ }).first()

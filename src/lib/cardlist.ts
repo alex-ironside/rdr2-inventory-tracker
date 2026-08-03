@@ -126,9 +126,7 @@ export function filterCards(
   cards: CardItem[],
   opts: { query: string; filter: CardFilter }
 ): CardItem[] {
-  return cards.filter(
-    (c) => matchesFilter(c.status, opts.filter) && matchesQuery(c, opts.query)
-  );
+  return cards.filter((c) => matchesFilter(c.status, opts.filter) && matchesQuery(c, opts.query));
 }
 
 /** Card counts for each filter chip. */

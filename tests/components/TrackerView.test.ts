@@ -320,9 +320,7 @@ describe('TrackerView', () => {
       await screen.findByLabelText('Search Inventory Tracker');
       // Expand the Alligator Skin card, then bump a stepper.
       await openCard('Alligator Skin');
-      await fireEvent.click(
-        screen.getByLabelText('Increase Alligator Skin — Camp delivered')
-      );
+      await fireEvent.click(screen.getByLabelText('Increase Alligator Skin — Camp delivered'));
       expect(screen.getByText('Saving…')).toBeInTheDocument();
       await waitFor(() => expect(spy).toHaveBeenCalled());
     });

@@ -37,9 +37,10 @@ describe('SheetPicker', () => {
     const active = within(dialog).getByRole('button', { name: /Inventory Tracker/ });
     expect(active).toHaveAttribute('aria-current', 'true');
     expect(within(active).getByText('1/4 done · 30% collected')).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole('button', { name: /Satchels/ })
-    ).toHaveAttribute('aria-current', 'false');
+    expect(within(dialog).getByRole('button', { name: /Satchels/ })).toHaveAttribute(
+      'aria-current',
+      'false'
+    );
   });
 
   it('selects a sheet when tapped', async () => {
