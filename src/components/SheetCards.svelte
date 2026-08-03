@@ -220,6 +220,9 @@
     display: flex;
     align-items: center;
     gap: 0.6rem;
+    /* Sibling of the cards in the scrolling flex column — must not shrink
+       either, or the section headers collapse to a sliver too. */
+    flex-shrink: 0;
   }
   .section::after {
     content: '';
