@@ -108,6 +108,7 @@
     padding: 0.7rem 1rem;
     background: linear-gradient(180deg, #2c2013, #241a11);
     border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
   }
   .ico {
     font-size: 1.6rem;

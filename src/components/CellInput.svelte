@@ -136,4 +136,26 @@
     font-weight: 700;
     margin-left: 0.1rem;
   }
+
+  /* Touch devices: enlarge the stepper buttons and number field so a fingertip
+     can hit them reliably (the desktop 1.35rem targets are far too small). */
+  @media (pointer: coarse) {
+    .cell {
+      gap: 0.3rem;
+    }
+    .step {
+      width: 2.4rem;
+      height: 2.4rem;
+      font-size: 1.25rem;
+    }
+    .num {
+      width: 3rem;
+      /* 16px avoids iOS focus-zoom (see app.css). */
+      font-size: 16px;
+      padding: 0.4rem 0.35rem;
+    }
+    .req {
+      font-size: 0.9rem;
+    }
+  }
 </style>

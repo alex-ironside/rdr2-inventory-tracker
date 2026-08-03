@@ -23,6 +23,9 @@ These were agreed for the project and must be followed for every change:
 5. **Security to ISO standards** — ISO/IEC 27001/27002 controls (see _Security_).
 6. Keep it **lint-clean and formatted** (ESLint + Prettier) and **type-clean**
    (`svelte-check`).
+7. **Mobile-friendly / responsive** — the app must be fully usable on a phone,
+   not just desktop (see _Responsive design_). Test every UI change at a narrow
+   viewport, not only on desktop.
 
 ## Commands
 
@@ -62,6 +65,8 @@ src/
     firebase.ts     Lazy Firebase init (config from VITE_FIREBASE_* env)
     storage.ts      StorageBackend interface + LocalBackend + FirebaseBackend
     sync.ts         Local→cloud merge + conflict resolution (pure)
+    import.ts       Spreadsheet → DeliveredMap mapping (pure)
+    xlsx.ts         Lazy .xlsx File → grid reader (impure shell over @e965/xlsx)
     session.svelte.ts  Reactive session store (auth + which backend is active)
   components/       Svelte 5 (runes) components — thin
   App.svelte        Shell / routing between login, list and tracker views
@@ -124,6 +129,35 @@ deterministic**:
 - `createdAt` keeps the earliest, `updatedAt` the latest.
 - The merge is **commutative and idempotent** — syncing twice is a no-op.
 
+### Importing an existing spreadsheet (`import.ts` / `xlsx.ts`)
+
+Players often already track progress in the source workbook
+(`RDR2_Crafting_Tracker_v3.xlsx`). **Import** lets them upload that `.xlsx` and
+pull their collected amounts in instead of re-entering everything.
+
+- The workbook holds real user progress in exactly two places, declared
+  explicitly in `IMPORT_SPECS`: the Inventory sheet's **"You Have"** column and
+  the Reinforced Equipment **"Done?"** column. Every other tracked column is a
+  static recipe *requirement* and is deliberately **not** imported — requirements
+  must never be mistaken for progress.
+- The single "You Have" total is **allocated** across a material's per-use
+  tracked columns (Satchels/Camp/Clothes/Saddles) in order, capped at each
+  required amount, so the row's aggregate Have/Remaining/Status matches the
+  sheet. Surplus beyond what the row needs is dropped.
+- Rows are matched to the seed by their **label** values (material name; for
+  reinforced, Challenge Set + Equipment), normalised case/whitespace-insensitively
+  — resilient to re-saved/exported copies.
+- Import is **non-destructive**: the parsed map is merged with `mergeDelivered`
+  (the same keep-**higher**-per-cell rule as cloud sync), so importing twice —
+  or over existing progress — never doubles or lowers anything. `TrackerView`
+  records a history checkpoint first, so an import can be undone.
+- **Layering:** `import.ts` is pure (grid → `DeliveredMap`) and 100%-tested;
+  `xlsx.ts` is the thin impure shell that lazily loads the parser and turns an
+  uploaded `File` into the grid. The parser is **`@e965/xlsx`** — a maintained,
+  `npm audit`-clean SheetJS build on the npm registry (the official SheetJS CDN
+  is blocked by the egress policy). It is dynamically `import()`-ed so it stays
+  out of the initial bundle.
+
 ## Testing
 
 Test-first, and **behavioural/integration over unit** wherever practical:
@@ -161,6 +195,34 @@ covered by a meaningful test, it usually shouldn't exist.
 
 When adding UI, keep these invariants. `eslint-plugin-svelte` a11y rules are on;
 don't blanket-disable them — justify any `svelte-ignore` inline.
+
+## Responsive design (mobile-first)
+
+The app is used on phones as much as desktop, so **mobile must be a
+first-class target, never an afterthought.** Keep these invariants:
+
+- **Real viewport units** — the app shell uses `100dvh` (with a `100vh`
+  fallback) so it isn't clipped behind mobile browser chrome. Don't reintroduce
+  bare `100vh` for full-height layout.
+- **No horizontal page scroll** — the body must never scroll sideways. Wide
+  content (the tracker table) scrolls inside its own `.scroll` region, which is
+  focusable/keyboard-scrollable; the page around it stays put (`body {
+  overflow-x: hidden }`).
+- **Touch targets** — interactive controls get finger-sized hit areas on touch
+  devices via `@media (pointer: coarse)` (steppers, freeze pins, check/reset
+  buttons, checkboxes, `.btn`/`.btn-ghost`). Don't ship desktop-only ~20px tap
+  targets.
+- **No iOS focus-zoom** — form fields are ≥16px on touch devices so focusing an
+  input doesn't trigger Safari's auto-zoom.
+- **Narrow-screen layout** — headers/toolbars wrap or drop redundant info
+  (e.g. the tracker hides the "Updated …" timestamp on `max-width: 640px`,
+  since the save pill and mode pill already convey state); multi-control forms
+  stack instead of squeezing. Breakpoint convention: `@media (max-width: 640px)`
+  for layout, `@media (pointer: coarse)` for touch ergonomics.
+- **Testing** — the Playwright suite runs every e2e test under a `mobile-chrome`
+  (Pixel 5) project as well as desktop, and `e2e/mobile.spec.ts` asserts the
+  mobile-specific invariants (no horizontal page scroll, usable steppers). Keep
+  both green.
 
 ## Security (ISO/IEC 27001 / 27002)
 

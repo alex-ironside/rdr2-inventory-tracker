@@ -347,4 +347,28 @@
     padding: 0 1.1rem;
     font-size: 1rem;
   }
+
+  @media (max-width: 640px) {
+    .topbar {
+      padding: 0.85rem 1rem;
+    }
+    h1 {
+      font-size: 1.2rem;
+    }
+    .content {
+      padding: 1rem;
+    }
+    /* Stack the title field above the button so neither is squeezed. */
+    .create {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .sync {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .sync .btn {
+      width: 100%;
+    }
+  }
 </style>

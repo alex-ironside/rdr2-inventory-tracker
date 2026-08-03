@@ -29,6 +29,9 @@ body {
   margin: 0;
   padding: 0;
   height: 100%;
+  /* Stop mobile Safari/Chrome auto-inflating text after orientation change. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -36,12 +39,24 @@ body {
   color: var(--text);
   font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
+  /* The tracker table scrolls in its own region; the page itself must never
+     scroll sideways on small screens. */
+  overflow-x: hidden;
 }
 
 #app {
+  /* `dvh` tracks the *visible* viewport, so the layout isn't clipped behind
+     mobile browser chrome (the address bar) the way `vh` is. `vh` stays as a
+     fallback for browsers without `dvh`. */
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
+  /* Keep content clear of the iOS notch / status bar and the home indicator
+     when installed as a full-screen PWA (viewport-fit=cover + translucent
+     status bar). Resolves to 0 where there are no insets. */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 h1,
@@ -138,6 +153,20 @@ input {
 }
 .faint {
   color: var(--text-faint);
+}
+
+/* On touch devices, iOS zooms the page in whenever a focused input's text is
+   under 16px. Bump form fields to 16px there so tapping a field never triggers
+   an unwanted zoom, and give controls a comfortable tap target. */
+@media (pointer: coarse) {
+  .input {
+    font-size: 16px;
+    padding: 0.7rem 0.8rem;
+  }
+  .btn,
+  .btn-ghost {
+    min-height: 2.75rem;
+  }
 }
 
 ::-webkit-scrollbar {
