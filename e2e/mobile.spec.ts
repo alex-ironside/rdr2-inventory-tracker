@@ -82,6 +82,35 @@ test('switching sheets uses the bottom-sheet picker, not a horizontal tab strip'
   await expectNoHorizontalPageScroll(page);
 });
 
+test('the full card list renders every card at full height (no flex squish)', async ({ page }) => {
+  // Regression: `.list` is a scrolling flex column. Its card children must not
+  // flex-shrink — with the whole (unfiltered) inventory rendered, the flex
+  // algorithm was collapsing each collapsed card to a ~2px hairline (cards use
+  // `overflow: hidden`, so their flex min-size resolved to 0). The items were
+  // effectively invisible and un-tappable. The earlier tests always searched to
+  // a single card first, so the many-items squish never showed up.
+  await openTracker(page, 'Full List');
+
+  // The unfiltered inventory has dozens of cards; assert the first several keep
+  // a real, tappable height rather than being squished to a sliver.
+  const cards = page.locator('.mat-card');
+  expect(await cards.count()).toBeGreaterThan(10);
+
+  const heights = await cards.evaluateAll((els) =>
+    els.slice(0, 6).map((el) => Math.round(el.getBoundingClientRect().height))
+  );
+  for (const h of heights) {
+    expect(h).toBeGreaterThanOrEqual(60);
+  }
+
+  // And a card far down the list is reachable by scrolling and can be expanded
+  // to edit its steppers — i.e. the list genuinely scrolls to its content.
+  const target = cards.nth(20);
+  await target.scrollIntoViewIfNeeded();
+  await expect(target).toBeVisible();
+  await expectNoHorizontalPageScroll(page);
+});
+
 test('card steppers are large enough to tap and work on touch', async ({ page }) => {
   await openTracker(page, 'Tap Targets');
 

@@ -91,6 +91,11 @@
     border: 1px solid var(--line-soft);
     border-radius: var(--radius);
     overflow: hidden;
+    /* The parent `.list` is a scrolling flex column. Cards must keep their
+       natural height and overflow (scroll) rather than flex-shrink: with the
+       whole list rendered, `overflow: hidden` above lets the flex algorithm
+       collapse each collapsed card to a ~0px hairline, hiding every item. */
+    flex-shrink: 0;
   }
   .mat-card.open {
     border-color: var(--line);
