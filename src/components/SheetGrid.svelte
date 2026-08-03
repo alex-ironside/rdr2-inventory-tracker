@@ -305,6 +305,9 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
+    /* Allow the wide, horizontally-scrolling grid inside to shrink this column
+       below its content width rather than widening the page. */
+    min-width: 0;
   }
   .toolbar {
     display: flex;
@@ -338,9 +341,18 @@
 
   .scroll {
     flex: 1;
+    /* Let this flex item shrink below its (very wide) table content instead of
+       forcing the page wider than the viewport. */
+    min-width: 0;
     overflow: auto;
-    /* Momentum scrolling for the grid on iOS. */
-    -webkit-overflow-scrolling: touch;
+    /* Keep the grid's horizontal scroll from bubbling to the page (and from
+       triggering iOS back-swipe navigation). Do NOT add
+       `-webkit-overflow-scrolling: touch` here: on iOS it routes this
+       container through a legacy scroller that breaks `position: sticky`, so
+       the pinned material column freezes over the data and the un-clipped
+       table pushes the page past 100vw. Modern iOS scrolls with momentum
+       natively. */
+    overscroll-behavior: contain;
     margin: 0 0.5rem 0.5rem;
     border: 1px solid var(--line-soft);
     border-radius: 8px;

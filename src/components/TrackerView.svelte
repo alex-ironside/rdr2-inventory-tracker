@@ -273,6 +273,9 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
+    /* The grid inside scrolls horizontally in its own region; this column must
+       never grow past the viewport and push the page sideways. */
+    min-width: 0;
   }
   .topbar {
     display: flex;
@@ -441,7 +444,10 @@
     }
     .tabs {
       padding: 0.4rem 0.5rem 0;
-      -webkit-overflow-scrolling: touch;
+      /* Contain the tab strip's horizontal scroll; no
+         `-webkit-overflow-scrolling: touch` (it breaks position:sticky on
+         iOS — see SheetGrid `.scroll`). */
+      overscroll-behavior-x: contain;
     }
   }
 </style>
