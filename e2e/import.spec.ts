@@ -42,8 +42,9 @@ test('imports collected amounts from a spreadsheet and can be undone', async ({ 
     buffer: buildWorkbook()
   });
 
-  // Confirmation summary appears.
-  await expect(page.getByRole('status')).toContainText(/Imported 2 items\s+\(8 collected\)/);
+  // Confirmation summary appears. The 8 collected pelts also flow into the
+  // crafting recipe tabs, so more than the 2 inventory rows are updated.
+  await expect(page.getByRole('status')).toContainText(/Imported \d+ items\s+\(8 collected\)/);
 
   // Alligator's Camp (required 1) is now filled from the "You Have" of 1.
   const alligator = page.locator('tr', { hasText: 'Alligator Skin' }).first();
@@ -65,4 +66,32 @@ test('imports collected amounts from a spreadsheet and can be undone', async ({ 
   await expect(
     alligator.getByRole('spinbutton', { name: /Alligator Skin — Camp delivered/ })
   ).toHaveValue('0');
+
+  // The green confirmation is a transient toast — it dismisses itself, never
+  // lingering over the header.
+  await expect(page.getByRole('status')).toBeHidden({ timeout: 10_000 });
+});
+
+test('import populates the dedicated Satchels tab from collected pelts', async ({ page }) => {
+  // Regression for the reported bug: collecting the pelts a satchel needs must
+  // advance the Satchels tab, not only the Inventory Tracker's Satchels column.
+  await page.getByRole('button', { name: /Continue offline/i }).click();
+  await page.getByPlaceholder(/New playthrough title/i).fill('Satchels Import E2E');
+  await page.getByRole('button', { name: /New Playthrough/i }).click();
+  await expect(page.getByRole('button', { name: /Inventory Tracker/ })).toBeVisible();
+
+  await page.setInputFiles('input[type="file"]', {
+    name: 'RDR2_Crafting_Tracker.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: buildWorkbook()
+  });
+  await expect(page.getByRole('status')).toContainText(/Imported \d+ items/);
+
+  // Deer Pelt is the first ingredient of every Pearson satchel; the 7 collected
+  // fill each satchel's Deer requirement. Open the Satchels tab and check one.
+  await page.locator('nav.tabs').getByRole('button', { name: /Satchels/ }).click();
+  const tonics = page.locator('tr', { hasText: 'Tonics Satchel' }).first();
+  await expect(
+    tonics.getByRole('spinbutton', { name: /Tonics Satchel — Qty delivered/ }).first()
+  ).toHaveValue('1');
 });

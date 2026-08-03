@@ -101,7 +101,10 @@ describe('InstallPrompt', () => {
   });
 
   it('still renders when localStorage reads throw (private mode)', async () => {
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    // Spy the live `localStorage` instance (which may be the in-memory polyfill
+    // from tests/setup.ts, not a `Storage.prototype` instance) so the throw
+    // actually reaches the component's read.
+    vi.spyOn(localStorage, 'getItem').mockImplementation(() => {
       throw new Error('blocked');
     });
     setUA('Mozilla/5.0 (iPhone)');
@@ -112,7 +115,7 @@ describe('InstallPrompt', () => {
   });
 
   it('dismisses safely even when localStorage writes throw', async () => {
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
       throw new Error('blocked');
     });
     setUA('Mozilla/5.0 (iPhone)');

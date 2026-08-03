@@ -113,6 +113,62 @@ test('bulk check a row, then undo it from history', async ({ page }) => {
   await expect(camp).toHaveValue('0');
 });
 
+test('bulk check a column, then undo it from history', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Continue offline/i }).click();
+  await page.getByPlaceholder(/New playthrough title/i).fill('Column Check');
+  await page.getByRole('button', { name: /New Playthrough/i }).click();
+  await expect(page.getByRole('button', { name: /Inventory Tracker/ })).toBeVisible();
+
+  const alligator = page.locator('tr', { hasText: 'Alligator Skin' }).first();
+  const camp = alligator.getByRole('spinbutton', { name: /Alligator Skin — Camp delivered/ });
+  await expect(camp).toHaveValue('0');
+
+  // Check the whole Camp column (confirm the dialog) → every Camp cell collected
+  // becomes its required amount, so Alligator's Camp (required 1) reads 1.
+  page.once('dialog', (d) => d.accept());
+  await page.getByRole('button', { name: 'Check all collected in column Camp' }).click();
+  await expect(camp).toHaveValue('1');
+
+  // Undo it by restoring the checkpoint recorded before the bulk action.
+  await page.getByRole('button', { name: /History \(1\)/ }).click();
+  const dialog = page.getByRole('dialog', { name: 'Change history' });
+  page.once('dialog', (d) => d.accept());
+  await dialog.getByRole('button', { name: 'Restore' }).click();
+  await expect(camp).toHaveValue('0');
+});
+
+test('cell steppers increment, decrement, clamp at zero and accept typed values', async ({
+  page
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Continue offline/i }).click();
+  await page.getByPlaceholder(/New playthrough title/i).fill('Steppers');
+  await page.getByRole('button', { name: /New Playthrough/i }).click();
+  await expect(page.getByRole('button', { name: /Inventory Tracker/ })).toBeVisible();
+
+  const row = page.locator('tr', { hasText: 'Alligator Skin' }).first();
+  const field = row.getByRole('spinbutton', { name: /Alligator Skin — Camp delivered/ });
+  const inc = row.getByRole('button', { name: /Increase Alligator Skin — Camp delivered/ });
+  const dec = row.getByRole('button', { name: /Decrease Alligator Skin — Camp delivered/ });
+
+  // At zero the decrement is disabled (delivered can't go negative).
+  await expect(field).toHaveValue('0');
+  await expect(dec).toBeDisabled();
+
+  // Increment twice, then decrement once → 1.
+  await inc.click();
+  await inc.click();
+  await expect(field).toHaveValue('2');
+  await dec.click();
+  await expect(field).toHaveValue('1');
+
+  // Typing a value directly is accepted and persisted.
+  await field.fill('7');
+  await field.blur();
+  await expect(field).toHaveValue('7');
+});
+
 test('switching sheet tabs shows the right columns', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: /Continue offline/i }).click();

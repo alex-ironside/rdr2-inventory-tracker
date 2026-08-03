@@ -2,17 +2,23 @@
 // into a DeliveredMap that can be merged into a playthrough.
 //
 // The source workbook (RDR2_Crafting_Tracker_v3.xlsx — what the seed is
-// generated from) holds the user's actual progress in exactly two places:
+// generated from) holds the user's actual progress in exactly two places, the
+// only two SOURCE columns (declared explicitly in IMPORT_SPECS so requirements
+// are never mistaken for progress):
 //
 //   • Inventory Tracker → the single "You Have" column (how many of each
 //     material you've collected). The per-use columns next to it (Satchels,
 //     Camp, Trapper Clothes, Trapper Saddles) are static *requirements*, not
-//     progress, so they are NOT imported.
+//     progress, so they are never read as input.
 //   • Reinforced Equipment → the "Done?" column (a per-row checkbox).
 //
-// Every other tracked column in the workbook is a recipe requirement, so it is
-// deliberately ignored. The mapping is declared explicitly in IMPORT_SPECS
-// rather than inferred, so requirements can never be mistaken for progress.
+// The collected "You Have" totals then also flow *outward* into the crafting
+// recipe tabs (Satchels, Camp, Trapper garments/individual/saddles — see
+// MATERIAL_CONSUMER_SHEET_IDS): owning the pelts a recipe needs advances that
+// recipe. Each material's collected total is spread across those tabs in
+// priority order (satchels → camp → trapper) until it runs out, so the same
+// progress a player has is reflected on every tab that consumes it — not just
+// the Inventory Tracker's own columns.
 //
 // This module is framework-free and fully unit-tested; the xlsx → grid step
 // (the impure part) lives in xlsx.ts.
@@ -43,6 +49,24 @@ export const IMPORT_SPECS: ImportSpec[] = [
   { sheetId: 'inventory', mode: 'aggregate', sourceHeader: 'You Have' },
   { sheetId: 'reinforced', mode: 'bool', sourceHeader: 'Done?' }
 ];
+
+/**
+ * Crafting recipe tabs whose tracked "Qty" columns consume the raw materials
+ * the player collects. The workbook holds no direct progress for these — their
+ * qtys are recipe *requirements* — but a material collected in the Inventory
+ * Tracker ("You Have") can satisfy them. Each material's collected total is
+ * distributed across these tabs **in this priority order**, filling each recipe
+ * up to its required qty until the material runs out: Satchels first, then Camp,
+ * then the Trapper tabs (garments/individual before saddles) — mirroring the
+ * Inventory Tracker's own column order (Satchels, Camp, Clothes, Saddles).
+ */
+export const MATERIAL_CONSUMER_SHEET_IDS = [
+  'satchels',
+  'camp',
+  'garments',
+  'individual',
+  'saddles'
+] as const;
 
 export interface ImportSummary {
   /** Rows for which at least one delivered value was written. */
@@ -141,6 +165,61 @@ function gridRowIdentity(row: Grid[number], sheet: Sheet, header: HeaderInfo): s
 }
 
 /**
+ * Pair each tracked column with the ingredient *label* column that precedes it,
+ * so a crafting recipe row's "Qty" cell can be tied back to the material it
+ * consumes. Matches the Satchels/Camp/Trapper layout (ing1→qty1, ing2→qty2, …;
+ * ingredient→qty for saddles).
+ */
+function ingredientPairs(sheet: Sheet): { ingKey: string; qtyKey: string }[] {
+  const pairs: { ingKey: string; qtyKey: string }[] = [];
+  let lastLabel: string | null = null;
+  for (const c of sheet.columns) {
+    if (c.type === 'label') lastLabel = c.key;
+    else if (c.type === 'tracked' && lastLabel) pairs.push({ ingKey: lastLabel, qtyKey: c.key });
+  }
+  return pairs;
+}
+
+/**
+ * Distribute the collected-material pool (material name → count) across the
+ * crafting recipe tabs, in the priority order of MATERIAL_CONSUMER_SHEET_IDS.
+ * For each recipe cell whose ingredient the player has collected, fill its qty
+ * up to the required amount and draw the pool down; once a material runs out,
+ * lower-priority recipes for it are left untouched. Mutates `delivered`/`summary`.
+ */
+function allocateConsumers(
+  pool: Map<string, number>,
+  sheets: Sheet[],
+  delivered: DeliveredMap,
+  summary: ImportSummary
+): void {
+  for (const sheetId of MATERIAL_CONSUMER_SHEET_IDS) {
+    const sheet = sheets.find((s) => s.id === sheetId);
+    if (!sheet) continue;
+    const pairs = ingredientPairs(sheet);
+    for (const row of sheet.rows) {
+      if (row.section || !row.cells) continue;
+      let rowWrote = false;
+      for (const { ingKey, qtyKey } of pairs) {
+        const name = norm(row.cells[ingKey]?.value);
+        if (!name) continue;
+        const have = pool.get(name) ?? 0;
+        if (have <= 0) continue;
+        const req = row.cells[qtyKey]?.required ?? 0;
+        if (req <= 0) continue;
+        const take = Math.min(req, have);
+        const sheetMap = (delivered[sheet.id] ??= {});
+        sheetMap[row.id] = { ...(sheetMap[row.id] ?? {}), [qtyKey]: take };
+        pool.set(name, have - take);
+        summary.cellsWritten++;
+        rowWrote = true;
+      }
+      if (rowWrote) summary.itemsImported++;
+    }
+  }
+}
+
+/**
  * Distribute a single collected total across a row's tracked columns, filling
  * each up to its required amount in column order. Surplus beyond everything the
  * row needs is dropped (the app tracks progress toward requirements, and the
@@ -177,6 +256,11 @@ export function importWorkbook(wb: WorkbookData, sheets: Sheet[] = SHEETS): Impo
   const gridByTitle = new Map<string, Grid>();
   for (const [name, grid] of Object.entries(wb)) gridByTitle.set(norm(name), grid);
 
+  // Collected raw-material totals (material name → count), gathered from the
+  // aggregate "You Have" source. Fed to the crafting tabs after the primary
+  // sources are read, so pelts you own also fill their recipe requirements.
+  const materialPool = new Map<string, number>();
+
   for (const spec of IMPORT_SPECS) {
     const sheet = sheets.find((s) => s.id === spec.sheetId);
     if (!sheet) continue;
@@ -200,6 +284,13 @@ export function importWorkbook(wb: WorkbookData, sheets: Sheet[] = SHEETS): Impo
       if (!hasData) continue;
 
       const identity = gridRowIdentity(gridRow, sheet, header);
+
+      // Record the collected total into the material pool (aggregate sources
+      // only — a "You Have" count keyed by the material's name).
+      if (spec.mode === 'aggregate') {
+        materialPool.set(identity, (materialPool.get(identity) ?? 0) + toCount(rawSource));
+      }
+
       const seedRow = seedByIdentity.get(identity);
       if (!seedRow) {
         // Report the first label value so the user can see what was skipped.
@@ -228,6 +319,10 @@ export function importWorkbook(wb: WorkbookData, sheets: Sheet[] = SHEETS): Impo
       }
     }
   }
+
+  // Spread collected raw materials across the crafting recipe tabs (satchels →
+  // camp → trapper), so owning the pelts also advances the recipes that use them.
+  allocateConsumers(materialPool, sheets, delivered, summary);
 
   return { delivered, summary };
 }

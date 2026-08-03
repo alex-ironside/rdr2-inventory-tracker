@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { importWorkbook, IMPORT_SPECS, type WorkbookData } from '../src/lib/import';
+import {
+  importWorkbook,
+  IMPORT_SPECS,
+  MATERIAL_CONSUMER_SHEET_IDS,
+  type WorkbookData
+} from '../src/lib/import';
 import type { Sheet } from '../src/lib/types';
 
 // A miniature "Inventory Tracker" seed matching the real sheet's shape: a
@@ -344,6 +349,181 @@ describe('importWorkbook — defensive handling of sparse/partial data', () => {
     );
     // satchels/camp contribute 0 requirement → the 3 land in clothes.
     expect(delivered.inventory.deer).toEqual({ clothes: 3 });
+  });
+});
+
+// Miniature crafting recipe tabs. Each pairs an ingredient *label* column with
+// the tracked *qty* column that follows it — the same shape as the real
+// Satchels / Camp / Trapper sheets in the seed.
+const satchelsTab: Sheet = {
+  id: 'satchels',
+  title: 'Satchels',
+  note: '',
+  columns: [
+    { key: 'satchel', label: 'Satchel', type: 'label' },
+    { key: 'benefit', label: 'Benefit', type: 'meta' },
+    { key: 'ing1', label: 'Ingredient 1', type: 'label' },
+    { key: 'qty1', label: 'Qty', type: 'tracked' },
+    { key: 'ing2', label: 'Ingredient 2', type: 'label' },
+    { key: 'qty2', label: 'Qty', type: 'tracked' }
+  ],
+  rows: [
+    { id: 'sec', section: true, label: 'PEARSON' },
+    {
+      id: 'tonics',
+      cells: {
+        satchel: { value: 'Tonics Satchel' },
+        ing1: { value: 'Deer Pelt' },
+        qty1: { required: 1 },
+        ing2: { value: 'Buck Pelt' },
+        qty2: { required: 1 }
+      }
+    },
+    {
+      id: 'kit',
+      cells: {
+        satchel: { value: 'Kit Satchel' },
+        ing1: { value: 'Deer Pelt' },
+        qty1: { required: 1 },
+        ing2: { value: 'Panther Pelt' },
+        qty2: { required: 1 }
+      }
+    }
+  ]
+};
+
+const campTab: Sheet = {
+  id: 'camp',
+  title: 'Camp Improvements',
+  note: '',
+  columns: [
+    { key: 'item', label: 'Item', type: 'label' },
+    { key: 'ing1', label: 'Ingredient 1', type: 'label' },
+    { key: 'qty1', label: 'Qty', type: 'tracked' }
+  ],
+  rows: [
+    {
+      id: 'skull',
+      cells: { item: { value: 'Deer Skull' }, ing1: { value: 'Deer Pelt' }, qty1: { required: 2 } }
+    }
+  ]
+};
+
+const garmentsTab: Sheet = {
+  id: 'garments',
+  title: 'Trapper - Garment Sets',
+  note: '',
+  columns: [
+    { key: 'item', label: 'Item', type: 'label' },
+    { key: 'ing1', label: 'Ingredient 1', type: 'label' },
+    { key: 'qty1', label: 'Qty', type: 'tracked' }
+  ],
+  rows: [
+    {
+      id: 'coat',
+      cells: { item: { value: 'Deer Coat' }, ing1: { value: 'Deer Pelt' }, qty1: { required: 3 } }
+    }
+  ]
+};
+
+describe('importWorkbook — crafting tab allocation from collected materials', () => {
+  it('fills a satchel recipe tab from the inventory "You Have" pool', () => {
+    // Deer: have 2 → satchels tab needs 1 (Tonics) + 1 (Kit) = 2, exactly filled.
+    const { delivered } = importWorkbook(
+      inventoryWorkbook([['Deer Pelt', 'x', 2, 7, 0, 5, 0, 12, 10, 'NEED MORE']]),
+      [inventory, satchelsTab]
+    );
+    expect(delivered.satchels.tonics).toEqual({ qty1: 1 });
+    expect(delivered.satchels.kit).toEqual({ qty1: 1 });
+    // Buck/Panther were not collected, so their qty2 cells stay empty.
+    expect(delivered.satchels.tonics.qty2).toBeUndefined();
+  });
+
+  it('distributes a single material pool across tabs in priority order (satchels → camp → trapper)', () => {
+    // Deer: have 6. Satchels needs 2, Camp needs 2, Garments needs 3 → the pool
+    // fills satchels (2) and camp (2) fully, then 2 of garments' 3.
+    const { delivered } = importWorkbook(
+      inventoryWorkbook([['Deer Pelt', 'x', 6, 7, 0, 5, 0, 12, 6, 'NEED MORE']]),
+      [inventory, satchelsTab, campTab, garmentsTab]
+    );
+    expect(delivered.satchels.tonics).toEqual({ qty1: 1 });
+    expect(delivered.satchels.kit).toEqual({ qty1: 1 });
+    expect(delivered.camp.skull).toEqual({ qty1: 2 });
+    expect(delivered.garments.coat).toEqual({ qty1: 2 }); // 6 - 2 - 2 = 2 of 3
+  });
+
+  it('leaves lower-priority tabs untouched when the pool is exhausted', () => {
+    // Deer: have 2 → satchels consumes all of it; camp/garments get nothing.
+    const { delivered } = importWorkbook(
+      inventoryWorkbook([['Deer Pelt', 'x', 2, 7, 0, 5, 0, 12, 10, 'NEED MORE']]),
+      [inventory, satchelsTab, campTab, garmentsTab]
+    );
+    expect(delivered.camp).toBeUndefined();
+    expect(delivered.garments).toBeUndefined();
+  });
+
+  it('does not fill crafting tabs when no inventory pool is available', () => {
+    // Only the satchels tab is provided — there is no "You Have" source, so
+    // nothing is allocated (requirements are never mistaken for progress).
+    const { delivered } = importWorkbook({ Satchels: [[]] }, [satchelsTab]);
+    expect(delivered.satchels).toBeUndefined();
+  });
+
+  it('skips a recipe cell whose ingredient is collected but requires nothing', () => {
+    const oddTab: Sheet = {
+      id: 'satchels',
+      title: 'Satchels',
+      note: '',
+      columns: [
+        { key: 'satchel', label: 'Satchel', type: 'label' },
+        { key: 'ing1', label: 'Ingredient 1', type: 'label' },
+        { key: 'qty1', label: 'Qty', type: 'tracked' },
+        { key: 'ing2', label: 'Ingredient 2', type: 'label' },
+        { key: 'qty2', label: 'Qty', type: 'tracked' }
+      ],
+      rows: [
+        {
+          id: 'weird',
+          cells: {
+            satchel: { value: 'Weird Satchel' },
+            ing1: { value: 'Deer Pelt' }, // collected, but its qty has no requirement
+            qty1: {},
+            ing2: { value: '' }, // blank ingredient paired with a qty column
+            qty2: { required: 1 }
+          }
+        }
+      ]
+    };
+    const { delivered } = importWorkbook(
+      inventoryWorkbook([['Deer Pelt', 'x', 5, 7, 0, 5, 0, 12, 7, 'NEED MORE']]),
+      [inventory, oddTab]
+    );
+    // qty1 requires nothing → not written; qty2's ingredient is blank → skipped.
+    expect(delivered.satchels).toBeUndefined();
+  });
+
+  it('counts crafting-tab rows in the summary but does not double-count collected', () => {
+    // collectedTotal reflects the pelts collected (the inventory pool), not the
+    // per-recipe cells they also fill.
+    const { summary } = importWorkbook(
+      inventoryWorkbook([['Deer Pelt', 'x', 2, 7, 0, 5, 0, 12, 10, 'NEED MORE']]),
+      [inventory, satchelsTab]
+    );
+    expect(summary.collectedTotal).toBe(2);
+    // 1 inventory row + 2 satchel rows updated.
+    expect(summary.itemsImported).toBe(3);
+  });
+});
+
+describe('MATERIAL_CONSUMER_SHEET_IDS', () => {
+  it('lists the crafting tabs in the agreed priority order', () => {
+    expect(MATERIAL_CONSUMER_SHEET_IDS).toEqual([
+      'satchels',
+      'camp',
+      'garments',
+      'individual',
+      'saddles'
+    ]);
   });
 });
 

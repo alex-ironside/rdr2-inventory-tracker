@@ -13,11 +13,11 @@ const INV_HEADER = [
   'Trapper Saddles'
 ];
 
-function xlsxFile(rows: unknown[][]): File {
+function xlsxFile(rows: unknown[][], sheetName = 'Inventory Tracker'): File {
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Inventory Tracker');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), sheetName);
   const written = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer | Uint8Array;
-  const ab = written instanceof Uint8Array ? written.buffer : written;
+  const ab = (written instanceof Uint8Array ? written.buffer : written) as ArrayBuffer;
   const file = new File([ab], 'tracker.xlsx');
   Object.defineProperty(file, 'arrayBuffer', { value: async () => ab });
   return file;
@@ -63,10 +63,14 @@ describe('ImportButton', () => {
     await waitFor(() => expect(onImport).toHaveBeenCalledOnce());
     const [delivered, summary] = onImport.mock.calls[0];
     expect(delivered.inventory['inventory-6']).toEqual({ camp: 1 });
-    expect(summary.itemsImported).toBe(2);
+    // Collected pelts also flow into the crafting recipe tabs they satisfy.
+    expect(Object.keys(delivered.satchels).length).toBeGreaterThan(0);
+    // 2 inventory rows + 7 satchels (Deer) + 1 camp (Alligator) recipe rows.
+    expect(summary.itemsImported).toBe(10);
+    expect(summary.collectedTotal).toBe(8);
     // Success message reflects the summary (plural, no unmatched).
     expect(await screen.findByRole('status')).toHaveTextContent(
-      /Imported 2 items \(8 collected\)\./
+      /Imported 10 items \(8 collected\)\./
     );
   });
 
@@ -74,17 +78,37 @@ describe('ImportButton', () => {
     const onImport = vi.fn();
     render(ImportButton, { props: { onImport } });
 
+    // A reinforced-equipment sheet: one recognised "Done?" row (1 item, nothing
+    // collected) plus one unknown row that is reported as not recognised.
     await select(
-      xlsxFile([
-        INV_HEADER,
-        ['Alligator Skin', 'Swamps', 1, 0, 1, 0, 1],
-        ['Unicorn Horn', 'Nowhere', 3, 1, 0, 0, 0]
-      ])
+      xlsxFile(
+        [
+          ['Challenge Set', 'Equipment', 'Cost', 'Done?'],
+          ['Bandit', 'Bandolier', '$28.75', 'x'],
+          ['Ghost', 'Cape', '$0', 'x']
+        ],
+        'Reinforced Equipment'
+      )
     );
 
     expect(await screen.findByRole('status')).toHaveTextContent(
-      /Imported 1 item \(1 collected\) · 1 not recognised\./
+      /Imported 1 item \(0 collected\) · 1 not recognised\./
     );
+  });
+
+  it('auto-dismisses the success confirmation after the hide delay', async () => {
+    const onImport = vi.fn();
+    render(ImportButton, { props: { onImport, hideDelayMs: 40 } });
+
+    await select(
+      xlsxFile([INV_HEADER, ['Alligator Skin', 'Swamps', 1, 0, 1, 0, 1]])
+    );
+
+    // Confirmation appears…
+    const status = await screen.findByRole('status');
+    expect(status).toHaveTextContent(/Imported/);
+    // …then disappears on its own (no user action).
+    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument());
   });
 
   it('shows an error for a file that is not a valid spreadsheet', async () => {

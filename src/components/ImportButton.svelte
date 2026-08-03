@@ -2,24 +2,37 @@
   // Upload an RDR2 crafting spreadsheet and hand the parsed progress back to the
   // parent to merge. Parsing (xlsx → grid) and mapping (grid → DeliveredMap)
   // live in the pure lib; this component is just the file-picker + status.
+  import { onDestroy } from 'svelte';
   import { fileToWorkbook } from '../lib/xlsx';
   import { importWorkbook, type ImportSummary } from '../lib/import';
   import type { DeliveredMap } from '../lib/types';
 
   let {
-    onImport
+    onImport,
+    // How long the success confirmation stays before auto-dismissing (ms). It is
+    // a transient toast, not persistent state — left up, it lingers over the
+    // header and can even sit on top of other controls.
+    hideDelayMs = 5000
   }: {
     onImport: (delivered: DeliveredMap, summary: ImportSummary) => void | Promise<void>;
+    hideDelayMs?: number;
   } = $props();
 
   let input = $state<HTMLInputElement>();
   let busy = $state(false);
   let error = $state<string | null>(null);
   let summary = $state<ImportSummary | null>(null);
+  let hideTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function clearSummary() {
+    clearTimeout(hideTimer);
+    hideTimer = undefined;
+    summary = null;
+  }
 
   function pick() {
     error = null;
-    summary = null;
+    clearSummary();
     input?.click();
   }
 
@@ -28,12 +41,14 @@
     if (!file) return;
     busy = true;
     error = null;
-    summary = null;
+    clearSummary();
     try {
       const wb = await fileToWorkbook(file);
       const result = importWorkbook(wb);
       await onImport(result.delivered, result.summary);
       summary = result.summary;
+      // Auto-dismiss the confirmation so it never lingers on screen.
+      hideTimer = setTimeout(clearSummary, hideDelayMs);
     } catch (err) {
       error = `Couldn't read that file. Make sure it's the RDR2 crafting .xlsx. (${(err as Error).message})`;
     } finally {
@@ -42,6 +57,8 @@
       if (input) input.value = '';
     }
   }
+
+  onDestroy(() => clearTimeout(hideTimer));
 </script>
 
 <div class="import">

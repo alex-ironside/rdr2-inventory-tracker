@@ -135,15 +135,24 @@ Players often already track progress in the source workbook
 (`RDR2_Crafting_Tracker_v3.xlsx`). **Import** lets them upload that `.xlsx` and
 pull their collected amounts in instead of re-entering everything.
 
-- The workbook holds real user progress in exactly two places, declared
-  explicitly in `IMPORT_SPECS`: the Inventory sheet's **"You Have"** column and
-  the Reinforced Equipment **"Done?"** column. Every other tracked column is a
-  static recipe *requirement* and is deliberately **not** imported — requirements
+- The workbook holds real user progress in exactly two **source** places,
+  declared explicitly in `IMPORT_SPECS`: the Inventory sheet's **"You Have"**
+  column and the Reinforced Equipment **"Done?"** column. No other column is ever
+  *read* as input — the recipe tabs' "Qty" cells are static *requirements* and
   must never be mistaken for progress.
 - The single "You Have" total is **allocated** across a material's per-use
   tracked columns (Satchels/Camp/Clothes/Saddles) in order, capped at each
   required amount, so the row's aggregate Have/Remaining/Status matches the
   sheet. Surplus beyond what the row needs is dropped.
+- Collected materials also flow **outward into the crafting recipe tabs** so the
+  progress shows everywhere it applies, not only on the Inventory Tracker.
+  `MATERIAL_CONSUMER_SHEET_IDS` lists those tabs in priority order — **Satchels →
+  Camp → Trapper (garments/individual → saddles)**, mirroring the inventory
+  column order. Each material's collected total is drawn down across them: a
+  recipe cell is filled up to its required qty when the player owns that
+  ingredient, and once a material runs out, lower-priority recipes for it are
+  left untouched. The summary's `collectedTotal` counts the pelts once (the
+  inventory pool), never double-counting the recipe cells they also fill.
 - Rows are matched to the seed by their **label** values (material name; for
   reinforced, Challenge Set + Equipment), normalised case/whitespace-insensitively
   — resilient to re-saved/exported copies.

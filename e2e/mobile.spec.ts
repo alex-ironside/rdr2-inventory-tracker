@@ -41,7 +41,7 @@ test('the whole offline journey fits the phone viewport without sideways scroll'
   await expectNoHorizontalPageScroll(page);
 });
 
-test('the material column stays pinned while the grid scrolls, and the page never scrolls sideways', async ({
+test('a pinned material column stays put while the grid scrolls, and the page never scrolls sideways', async ({
   page
 }) => {
   await page.getByRole('button', { name: /Continue offline/i }).click();
@@ -49,10 +49,14 @@ test('the material column stays pinned while the grid scrolls, and the page neve
   await page.getByRole('button', { name: /New Playthrough/i }).click();
   await expect(page.getByRole('button', { name: /Inventory Tracker/ })).toBeVisible();
 
+  // The material column is unpinned by default; its stickiness is freeze-toggle
+  // driven. Pin it via the header's freeze control so sticky is active.
+  await page.getByRole('button', { name: /Freeze column Material/ }).first().click();
+
   // Scroll the grid all the way to the right — only the grid's own region may
-  // scroll; the material/header column must stay pinned to that region's left
-  // edge (the iOS regression made it detach and overlay the data). This guards
-  // the removal of `-webkit-overflow-scrolling: touch`, which breaks
+  // scroll; the pinned material/header column must stay pinned to that region's
+  // left edge (the iOS regression made it detach and overlay the data). This
+  // guards the removal of `-webkit-overflow-scrolling: touch`, which breaks
   // `position: sticky` inside a scroll container on iOS Safari.
   await page.evaluate(() => {
     const s = document.querySelector('.scroll') as HTMLElement;
