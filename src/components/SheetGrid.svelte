@@ -401,12 +401,13 @@
   }
 
   .rowhead {
-    position: sticky;
-    left: 0;
+    /* The material column is NOT pinned by default. Its sticky behaviour is
+       owned entirely by the freeze state (`.fz-col`, toggled by the column pin
+       button) — hard-coding `position: sticky` here would freeze it with no way
+       to unpin. */
     font-weight: 600;
     color: var(--text);
     white-space: nowrap;
-    z-index: 15;
   }
   .rowhead-label {
     font-family: var(--font);
