@@ -100,31 +100,64 @@ describe('InstallPrompt', () => {
     );
   });
 
+  // Swap the whole `localStorage` global for a stub so the throw is guaranteed
+  // to reach the component regardless of the host's Storage implementation.
+  // `vi.spyOn(localStorage, …)` is unreliable across Node versions: under the
+  // Node 24+ built-in Web Storage the spy can silently fail to intercept, so
+  // the component's try/catch never runs and its error paths go uncovered.
+  async function withStorage(overrides: Partial<Storage>, run: () => Promise<void>) {
+    const real = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    const stub: Storage = {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+      clear: () => {},
+      key: () => null,
+      length: 0,
+      ...overrides
+    };
+    Object.defineProperty(window, 'localStorage', { value: stub, configurable: true });
+    try {
+      await run();
+    } finally {
+      if (real) Object.defineProperty(window, 'localStorage', real);
+    }
+  }
+
   it('still renders when localStorage reads throw (private mode)', async () => {
-    // Spy the live `localStorage` instance (which may be the in-memory polyfill
-    // from tests/setup.ts, not a `Storage.prototype` instance) so the throw
-    // actually reaches the component's read.
-    vi.spyOn(localStorage, 'getItem').mockImplementation(() => {
-      throw new Error('blocked');
-    });
-    setUA('Mozilla/5.0 (iPhone)');
-    render(InstallPrompt);
-    await tick();
-    // readDismissed swallowed the error and defaulted to not-dismissed.
-    expect(await screen.findByRole('button', { name: 'How to install' })).toBeInTheDocument();
+    await withStorage(
+      {
+        getItem: () => {
+          throw new Error('blocked');
+        }
+      },
+      async () => {
+        setUA('Mozilla/5.0 (iPhone)');
+        render(InstallPrompt);
+        await tick();
+        // readDismissed swallowed the error and defaulted to not-dismissed.
+        expect(await screen.findByRole('button', { name: 'How to install' })).toBeInTheDocument();
+      }
+    );
   });
 
   it('dismisses safely even when localStorage writes throw', async () => {
-    vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
-      throw new Error('blocked');
-    });
-    setUA('Mozilla/5.0 (iPhone)');
-    render(InstallPrompt);
-    await tick();
-    await screen.findByRole('button', { name: 'How to install' });
-    await fireEvent.click(screen.getByLabelText('Dismiss install banner'));
-    await waitFor(() =>
-      expect(screen.queryByLabelText('Install this app')).not.toBeInTheDocument()
+    await withStorage(
+      {
+        setItem: () => {
+          throw new Error('blocked');
+        }
+      },
+      async () => {
+        setUA('Mozilla/5.0 (iPhone)');
+        render(InstallPrompt);
+        await tick();
+        await screen.findByRole('button', { name: 'How to install' });
+        await fireEvent.click(screen.getByLabelText('Dismiss install banner'));
+        await waitFor(() =>
+          expect(screen.queryByLabelText('Install this app')).not.toBeInTheDocument()
+        );
+      }
     );
   });
 
