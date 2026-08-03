@@ -206,8 +206,17 @@ first-class target, never an afterthought.** Keep these invariants:
   bare `100vh` for full-height layout.
 - **No horizontal page scroll** — the body must never scroll sideways. Wide
   content (the tracker table) scrolls inside its own `.scroll` region, which is
-  focusable/keyboard-scrollable; the page around it stays put (`body {
-  overflow-x: hidden }`).
+  focusable/keyboard-scrollable; the page around it stays put (`body`/`#app`
+  both `overflow-x: hidden`, and the tracker flex columns carry `min-width: 0`
+  so the wide grid shrinks rather than widening the page).
+- **iOS sticky panes** — the frozen material column, sticky header and pinned
+  rows/columns use `position: sticky`. **Never put
+  `-webkit-overflow-scrolling: touch` on the `.scroll` grid or the `.tabs`
+  strip:** on iOS Safari it swaps in a legacy scroller that breaks `sticky`, so
+  the material column freezes over the data and the un-clipped table pushes the
+  page past 100vw. Momentum scrolling is native on modern iOS; use
+  `overscroll-behavior` to contain the scroll instead. Guarded by
+  `tests/ios-sticky.test.ts`.
 - **Touch targets** — interactive controls get finger-sized hit areas on touch
   devices via `@media (pointer: coarse)` (steppers, freeze pins, check/reset
   buttons, checkboxes, `.btn`/`.btn-ghost`). Don't ship desktop-only ~20px tap

@@ -41,6 +41,37 @@ test('the whole offline journey fits the phone viewport without sideways scroll'
   await expectNoHorizontalPageScroll(page);
 });
 
+test('the material column stays pinned while the grid scrolls, and the page never scrolls sideways', async ({
+  page
+}) => {
+  await page.getByRole('button', { name: /Continue offline/i }).click();
+  await page.getByPlaceholder(/New playthrough title/i).fill('Sticky Panes');
+  await page.getByRole('button', { name: /New Playthrough/i }).click();
+  await expect(page.getByRole('button', { name: /Inventory Tracker/ })).toBeVisible();
+
+  // Scroll the grid all the way to the right — only the grid's own region may
+  // scroll; the material/header column must stay pinned to that region's left
+  // edge (the iOS regression made it detach and overlay the data). This guards
+  // the removal of `-webkit-overflow-scrolling: touch`, which breaks
+  // `position: sticky` inside a scroll container on iOS Safari.
+  await page.evaluate(() => {
+    const s = document.querySelector('.scroll') as HTMLElement;
+    s.scrollLeft = s.scrollWidth;
+  });
+
+  const { pinnedDelta } = await page.evaluate(() => {
+    const region = document.querySelector('.scroll')!.getBoundingClientRect();
+    const rowhead = document.querySelector('th.rowhead')!.getBoundingClientRect();
+    return { pinnedDelta: Math.abs(rowhead.left - region.left) };
+  });
+  // The row header hugs the left edge of the scroll region (a few px of border
+  // slack), i.e. `position: sticky` is honoured.
+  expect(pinnedDelta).toBeLessThanOrEqual(4);
+
+  // And scrolling the grid never widened the page itself.
+  await expectNoHorizontalPageScroll(page);
+});
+
 test('cell steppers are large enough to tap and work on touch', async ({ page }) => {
   await page.getByRole('button', { name: /Continue offline/i }).click();
   await page.getByPlaceholder(/New playthrough title/i).fill('Tap Targets');

@@ -50,6 +50,12 @@ body {
      fallback for browsers without `dvh`. */
   height: 100vh;
   height: 100dvh;
+  /* Belt-and-braces with `body { overflow-x: hidden }`: the app shell itself
+     must never scroll or paint sideways past the viewport. Wide content (the
+     tracker grid) scrolls inside its own `.scroll` region. */
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   /* Keep content clear of the iOS notch / status bar and the home indicator
