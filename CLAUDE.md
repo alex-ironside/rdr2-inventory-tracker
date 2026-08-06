@@ -26,6 +26,17 @@ These were agreed for the project and must be followed for every change:
 7. **Mobile-friendly / responsive** — the app must be fully usable on a phone,
    not just desktop (see _Responsive design_). Test every UI change at a narrow
    viewport, not only on desktop.
+8. **Use the BMAD workflow** for non-trivial work — see _Workflow (BMAD)_.
+
+## Workflow (BMAD)
+
+Plan and build features through the **BMAD method**, not ad-hoc edits. For any
+non-trivial change (a feature, a cross-cutting refactor, anything beyond a
+one-line fix), drive it through the BMAD phases — brief/PRD → architecture →
+epics & stories → dev → review — using the `bmad-*` skills, rather than jumping
+straight to code. The document deliverables (PRD, architecture, story files) are
+part of the work product; keep them in normal prose. Trivial one-off fixes may
+skip the ceremony.
 
 ## Commands
 
