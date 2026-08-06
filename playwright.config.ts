@@ -42,7 +42,7 @@ export default defineConfig({
     ? [
         {
           name: 'emulator',
-          testMatch: /cloud-sync\.spec\.ts$/,
+          testMatch: /(cloud-sync|billing)\.spec\.ts$/,
           use: {
             ...devices['Desktop Chrome'],
             launchOptions
@@ -52,7 +52,7 @@ export default defineConfig({
     : [
         {
           name: 'chromium',
-          testIgnore: /cloud-sync\.spec\.ts$/,
+          testIgnore: /(cloud-sync|billing)\.spec\.ts$/,
           use: {
             ...devices['Desktop Chrome'],
             launchOptions

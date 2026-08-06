@@ -190,11 +190,16 @@ Test-first, and **behavioural/integration over unit** wherever practical:
   user journey with the real session store and real localStorage.
 - **End-to-end** (`e2e/`, Playwright) — the full flow in a real browser
   (desktop + mobile Chromium), offline mode, across a real reload.
-- **Cloud end-to-end** (`e2e/cloud-sync.spec.ts`) — the Pro / cloud-sync journey
-  against the real **Firebase Auth + Firestore emulators** and the real
-  `firestore.rules`: Pro sign-in + cloud CRUD round-trip, offline→cloud sync,
-  free-user stays local (never writes to the cloud), and GDPR account deletion.
-  Run with `npm run e2e:cloud` (needs Java for the Firestore emulator; the script
+- **Cloud end-to-end** (`e2e/cloud-sync.spec.ts`, `e2e/billing.spec.ts`) — the
+  Pro / cloud-sync / billing journeys against the real **Firebase Auth +
+  Firestore emulators** and the real `firestore.rules`: Pro sign-in + cloud CRUD
+  round-trip, offline→cloud sync, free-user stays local (never writes to the
+  cloud), GDPR account deletion, and the **Stripe upgrade flow** (Upgrade → the
+  extension is simulated test-side via `simulateStripeCheckout` → entitlement
+  granted → app becomes Pro; plus the checkout-error path). The Manage-billing
+  portal is a callable that would need the Functions emulator; it stays unit-only
+  in `billing.test.ts`. Run with `npm run e2e:cloud` (needs Java for the
+  Firestore emulator; the script
   wraps Playwright in `firebase emulators:exec`). The build is wired to the
   emulators via `--mode emulator` (config in `e2e/emulator-env/`, throwaway demo
   values), and users are seeded with a real `stripeRole` claim through the Admin

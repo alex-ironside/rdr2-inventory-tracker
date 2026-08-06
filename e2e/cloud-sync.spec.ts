@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import {
   seedUsers,
   clearFirestore,
@@ -7,6 +7,7 @@ import {
   PRO_USER,
   FREE_USER
 } from './support/emulator';
+import { signIn } from './support/app';
 
 // End-to-end coverage of the cloud / Pro / sync journey against the real
 // Firebase Auth + Firestore emulators and the real firestore.rules. Only runs
@@ -20,15 +21,6 @@ test.beforeEach(async () => {
   await seedUsers();
   await clearFirestore();
 });
-
-async function signIn(page: Page, user: { email: string; password: string }) {
-  await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'RDR2 Crafting Tracker' })).toBeVisible();
-  await page.getByLabel('Email').fill(user.email);
-  await page.getByLabel('Password').fill(user.password);
-  await page.getByRole('button', { name: 'Sign In' }).click();
-  await expect(page.getByRole('heading', { name: 'Your Playthroughs' })).toBeVisible();
-}
 
 test('a Pro user syncs progress to the cloud and it survives a reload', async ({ page }) => {
   await signIn(page, PRO_USER);

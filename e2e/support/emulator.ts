@@ -54,18 +54,47 @@ export async function cloudIterationTitles(uid: string): Promise<string[]> {
  *  a client wouldn't be allowed to create — e.g. a doc owned by a free user, to
  *  prove a downgraded owner can still read and delete their own data. */
 export async function adminPutIteration(uid: string, id: string, title = 'Seeded'): Promise<void> {
-  await getFirestore(app())
-    .collection('iterations')
-    .doc(id)
-    .set({
-      ownerUid: uid,
-      title,
-      delivered: {},
-      freeze: {},
-      history: [],
-      createdAt: 1,
-      updatedAt: 1
-    });
+  await getFirestore(app()).collection('iterations').doc(id).set({
+    ownerUid: uid,
+    title,
+    delivered: {},
+    freeze: {},
+    history: [],
+    createdAt: 1,
+    updatedAt: 1
+  });
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Stand in for the "Run Payments with Stripe" extension in the billing e2e. The
+ * app writes a `customers/{uid}/checkout_sessions/{id}` doc and waits for the
+ * extension to fill in `url` (or `error`). Here we poll for that doc and:
+ *   - on success: grant the Pro claim (what the Stripe webhook does on payment)
+ *     and write back `url` = the app's own `success_url`, so the browser
+ *     redirects same-origin to `?checkout=success` and the app upgrades to Pro;
+ *   - on error: write back an `error` so the UI surfaces it.
+ */
+export async function simulateStripeCheckout(
+  uid: string,
+  opts: { error?: string } = {}
+): Promise<void> {
+  const col = getFirestore(app()).collection('customers').doc(uid).collection('checkout_sessions');
+  let session;
+  for (let i = 0; i < 100 && !session; i++) {
+    const snap = await col.limit(1).get();
+    if (!snap.empty) session = snap.docs[0];
+    else await sleep(100);
+  }
+  if (!session) throw new Error('timed out waiting for the client to start checkout');
+
+  if (opts.error) {
+    await session.ref.set({ error: { message: opts.error } }, { merge: true });
+    return;
+  }
+  await getAuth(app()).setCustomUserClaims(uid, { stripeRole: 'pro' }); // the webhook's job
+  await session.ref.set({ url: session.get('success_url') as string }, { merge: true });
 }
 
 /** Whether an Auth user still exists (used to verify GDPR account deletion). */
