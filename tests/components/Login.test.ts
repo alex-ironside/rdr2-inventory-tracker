@@ -75,4 +75,31 @@ describe('Login', () => {
     expect(screen.queryByLabelText('Email')).not.toBeInTheDocument();
     expect(screen.getByText(/still track everything locally/i)).toBeInTheDocument();
   });
+
+  it('switches to register mode and discloses the paid Pro model before signing up', async () => {
+    render(Login);
+    await fireEvent.click(screen.getByRole('button', { name: /Create an account/i }));
+
+    // The paid disclosure is visible BEFORE the user can register.
+    expect(screen.getByText(/Cloud sync is a paid Pro subscription/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Create free account/i })).toBeInTheDocument();
+  });
+
+  it('registers a new account via session.signUp', async () => {
+    const spy = vi.spyOn(session, 'signUp').mockResolvedValue(true);
+    render(Login);
+    await fireEvent.click(screen.getByRole('button', { name: /Create an account/i }));
+    await fireEvent.input(screen.getByLabelText('Email'), { target: { value: 'new@b.c' } });
+    await fireEvent.input(screen.getByLabelText('Password'), { target: { value: 'secret1' } });
+    await fireEvent.click(screen.getByRole('button', { name: /Create free account/i }));
+    expect(spy).toHaveBeenCalledWith('new@b.c', 'secret1');
+  });
+
+  it('can switch back from register to sign in', async () => {
+    render(Login);
+    await fireEvent.click(screen.getByRole('button', { name: /Create an account/i }));
+    await fireEvent.click(screen.getByRole('button', { name: /Sign in/i }));
+    expect(screen.getByRole('button', { name: 'Sign In' })).toBeInTheDocument();
+    expect(screen.queryByText(/paid Pro subscription/i)).not.toBeInTheDocument();
+  });
 });

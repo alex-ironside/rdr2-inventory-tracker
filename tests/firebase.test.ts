@@ -37,6 +37,7 @@ describe('firebase (unconfigured)', () => {
   it('reports not configured and throws when accessed', async () => {
     const mod = await import('../src/lib/firebase');
     expect(mod.isFirebaseConfigured()).toBe(false);
+    expect(() => mod.getFirebaseApp()).toThrow(/not configured/i);
     expect(() => mod.getFirebaseAuth()).toThrow(/not configured/i);
     expect(() => mod.getDb()).toThrow(/not configured/i);
     expect(initializeApp).not.toHaveBeenCalled();
@@ -54,11 +55,14 @@ describe('firebase (configured)', () => {
     stubConfig();
     const mod = await import('../src/lib/firebase');
 
+    const app1 = mod.getFirebaseApp();
+    const app2 = mod.getFirebaseApp();
     const auth1 = mod.getFirebaseAuth();
     const auth2 = mod.getFirebaseAuth();
     const db1 = mod.getDb();
     const db2 = mod.getDb();
 
+    expect(app1).toBe(app2);
     expect(auth1).toBe(auth2);
     expect(db1).toBe(db2);
     // App created exactly once despite multiple accessors.

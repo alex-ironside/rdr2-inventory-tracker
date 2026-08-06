@@ -5,6 +5,10 @@ rules_version = '2';
 //  * A user may only read or write iterations they own (ownerUid == their uid).
 //  * The owner field is immutable and must match the caller on create.
 //  * Incoming documents are schema-validated to reject malformed / oversized writes.
+//  * Cloud sync is a PAID feature: writing iterations requires the Pro entitlement
+//    (the Stripe extension's `stripeRole` custom claim). Reads and deletes stay
+//    open to the owner so a lapsed/downgraded user never loses or is locked out of
+//    their existing data, and can still erase it.
 //  * Everything not explicitly allowed is denied by the final catch-all.
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -15,6 +19,13 @@ service cloud.firestore {
 
     function ownsExisting() {
       return isSignedIn() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // Pro entitlement: set on the ID token by the "Run Payments with Stripe"
+    // extension from the product's `firebaseRole: pro` metadata. Must match
+    // PRO_ROLE in src/lib/entitlement.ts.
+    function isPro() {
+      return isSignedIn() && request.auth.token.stripeRole == 'pro';
     }
 
     function validTitle(data) {
@@ -32,16 +43,51 @@ service cloud.firestore {
     }
 
     match /iterations/{iterationId} {
+      // Owner may always read their own data (even after a downgrade).
       allow read: if ownsExisting();
 
-      allow create: if isSignedIn() && validNewIteration(request.resource.data);
+      // Writing (cloud sync) is Pro-only.
+      allow create: if isPro() && validNewIteration(request.resource.data);
 
-      // Owner cannot be reassigned; updated document must remain valid.
+      // Owner cannot be reassigned; updated document must remain valid; Pro-only.
       allow update: if ownsExisting()
+        && isPro()
         && request.resource.data.ownerUid == resource.data.ownerUid
         && validNewIteration(request.resource.data);
 
+      // Owner may delete their own data regardless of plan (incl. account erasure).
       allow delete: if ownsExisting();
+    }
+
+    // --- Stripe extension ("Run Payments with Stripe") -----------------------
+    // The extension writes customer/subscription/payment data via the Admin SDK
+    // (bypassing rules); clients only read their own and create checkout sessions.
+    match /customers/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+
+      // The client starts checkout by creating a session doc here; the extension
+      // fills in the hosted URL.
+      match /checkout_sessions/{id} {
+        allow read, write: if isSignedIn() && request.auth.uid == uid;
+      }
+      match /subscriptions/{id} {
+        allow read: if isSignedIn() && request.auth.uid == uid;
+      }
+      match /payments/{id} {
+        allow read: if isSignedIn() && request.auth.uid == uid;
+      }
+    }
+
+    // Product + price catalogue is written by the extension; readable by any
+    // signed-in user so the app can show what Pro costs.
+    match /products/{id} {
+      allow read: if isSignedIn();
+      match /prices/{id} {
+        allow read: if isSignedIn();
+      }
+      match /tax_rates/{id} {
+        allow read: if isSignedIn();
+      }
     }
 
     // Explicit default deny for anything not matched above.

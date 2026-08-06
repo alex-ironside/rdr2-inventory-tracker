@@ -3,6 +3,8 @@
   import { LocalBackend } from '../lib/storage';
   import { syncLocalToCloud } from '../lib/sync';
   import { formatDateTime } from '../lib/format';
+  import { track } from '../lib/analytics';
+  import AccountBar from './AccountBar.svelte';
   import type { IterationMeta } from '../lib/types';
 
   let { onOpen }: { onOpen: (id: string) => void } = $props();
@@ -38,6 +40,7 @@
     try {
       const result = await syncLocalToCloud(new LocalBackend(), session.backend);
       syncMessage = `Synced ${result.total} playthrough${result.total === 1 ? '' : 's'} to the cloud (${result.merged} merged, ${result.uploaded} uploaded).`;
+      track('sync_run', { total: result.total, merged: result.merged, uploaded: result.uploaded });
       localCount = 0;
       await load();
     } catch (e) {
@@ -73,6 +76,7 @@
     creating = true;
     try {
       const it = await session.backend.createIteration(newTitle);
+      track('iteration_created');
       newTitle = '';
       onOpen(it.id);
     } catch (e) {
@@ -113,6 +117,8 @@
   </header>
 
   <div class="content">
+    <AccountBar />
+
     <form class="create card" onsubmit={create}>
       <input
         class="input"

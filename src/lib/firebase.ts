@@ -20,7 +20,9 @@ const config = {
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  // Optional: enables Google Analytics (GA4). See analytics.ts.
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 let app: FirebaseApp | null = null;
@@ -42,6 +44,12 @@ function ensureApp(): FirebaseApp {
   }
   if (!app) app = initializeApp(config);
   return app;
+}
+
+/** The initialised Firebase app. Throws when Firebase is not configured. Used
+ *  by analytics.ts, which shares the same app instance. */
+export function getFirebaseApp(): FirebaseApp {
+  return ensureApp();
 }
 
 export function getFirebaseAuth(): Auth {

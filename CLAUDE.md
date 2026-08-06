@@ -67,7 +67,11 @@ src/
     sync.ts         Local→cloud merge + conflict resolution (pure)
     import.ts       Spreadsheet → DeliveredMap mapping (pure)
     xlsx.ts         Lazy .xlsx File → grid reader (impure shell over @e965/xlsx)
-    session.svelte.ts  Reactive session store (auth + which backend is active)
+    entitlement.ts  Pro entitlement from ID-token claim (pure) — cloud sync gate
+    billing.ts      Stripe checkout / portal shell over the Firebase Stripe extension
+    consent.ts      Analytics consent state (pure) — Google Consent Mode v2
+    analytics.ts    Google Analytics (GA4) via Firebase Analytics (lazy shell)
+    session.svelte.ts  Reactive session store (auth, Pro entitlement + which backend)
   components/       Svelte 5 (runes) components — thin
   App.svelte        Shell / routing between login, list and tracker views
 ```
@@ -247,8 +251,22 @@ first-class target, never an afterthought.** Keep these invariants:
 - **Access control / least privilege (A.9)** — Firestore rules
   (`firestore.rules`) require authentication, scope every read/write to the
   owning user (`ownerUid == request.auth.uid`), make the owner immutable,
-  schema-validate writes, and end with a default-deny. There is **no public
-  sign-up** — the single user is created in the Firebase console.
+  schema-validate writes, and end with a default-deny. **Public sign-up is
+  enabled** (users self-register in the app; the registration screen discloses
+  that cloud sync is a paid Pro feature before sign-up). Cloud **writes** are
+  gated on the Pro entitlement (`request.auth.token.stripeRole == 'pro'`); reads
+  and deletes stay open to the owner so a downgrade never loses or locks out
+  existing data, and **account deletion** (GDPR erasure) removes the user's cloud
+  data + auth user. The Stripe extension's `customers/*` (own) and `products/*`
+  (signed-in read) collections are scoped in the same rules.
+- **Monetisation / Pro (cloud sync)** — cloud sync is a paid **Pro** subscription;
+  offline/local mode is free. Entitlement rides on the Stripe extension's
+  `stripeRole` ID-token claim — one source of truth in `entitlement.ts`, applied
+  in `session.svelte.ts` (backend selection) and enforced in `firestore.rules`.
+  `billing.ts` drives Stripe Checkout/portal through the "Run Payments with
+  Stripe" extension (needs the Firebase **Blaze** plan; `VITE_DEV_FORCE_PRO=1`
+  forces the Pro path in dev builds only). `VITE_STRIPE_PRICE_ID` sets the Pro
+  price.
 - **Secrets management** — no secrets in the repo. Firebase _web_ config
   (`VITE_FIREBASE_*`) is public by design (protected by rules, not obscurity) and
   injected at build time. `.env*`, service-account JSON and Firebase debug logs

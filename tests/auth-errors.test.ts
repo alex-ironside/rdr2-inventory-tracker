@@ -9,7 +9,10 @@ describe('friendlyAuthError', () => {
     ['auth/wrong-password', 'Incorrect email or password.'],
     ['auth/invalid-credential', 'Incorrect email or password.'],
     ['auth/too-many-requests', 'Too many attempts. Please wait a moment and try again.'],
-    ['auth/network-request-failed', 'Network error. Check your connection and try again.']
+    ['auth/network-request-failed', 'Network error. Check your connection and try again.'],
+    ['auth/email-already-in-use', 'An account already exists for that email. Try signing in.'],
+    ['auth/weak-password', 'Please choose a stronger password (at least 6 characters).'],
+    ['auth/requires-recent-login', 'Please re-enter your password to confirm this change.']
   ])('maps %s to a friendly message', (code, expected) => {
     expect(friendlyAuthError({ code })).toBe(expected);
   });

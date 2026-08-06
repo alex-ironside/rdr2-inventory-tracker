@@ -4,6 +4,8 @@
   import IterationList from './components/IterationList.svelte';
   import TrackerView from './components/TrackerView.svelte';
   import InstallPrompt from './components/InstallPrompt.svelte';
+  import ConsentBanner from './components/ConsentBanner.svelte';
+  import { initAnalytics, trackPageView } from './lib/analytics';
 
   let openId = $state<string | null>(null);
 
@@ -18,9 +20,29 @@
   $effect(() => {
     if (!session.isAuthenticated) openId = null;
   });
+
+  // Boot analytics once, in Consent Mode v2 (default-denied until opt-in).
+  $effect(() => {
+    initAnalytics();
+  });
+
+  // The current top-level view, used for GA4 screen_view pageviews.
+  const view = $derived(
+    !session.ready
+      ? null
+      : !session.isAuthenticated
+        ? 'login'
+        : openId
+          ? 'tracker'
+          : 'list'
+  );
+  $effect(() => {
+    if (view) trackPageView(view);
+  });
 </script>
 
 <InstallPrompt />
+<ConsentBanner />
 
 {#if !session.ready}
   <div class="splash">

@@ -26,3 +26,7 @@ playwright/.cache/
 .vscode/
 .idea/
 *.log
+.bmad-loop/runs/
+.bmad-loop/cache/
+.bmad-loop/policy.toml
+_bmad/render/

@@ -7,6 +7,7 @@
   import { generateId } from '../lib/ids';
   import type { DeliveredMap, FreezeState, HistoryEntry, Iteration, Sheet } from '../lib/types';
   import { mergeDelivered } from '../lib/sync';
+  import { track } from '../lib/analytics';
   import SheetGrid from './SheetGrid.svelte';
   import HistoryPanel from './HistoryPanel.svelte';
   import ImportButton from './ImportButton.svelte';
@@ -90,6 +91,7 @@
     if (!confirm(`Set all collected amounts in ${label} equal to their required amounts?`)) return;
     recordCheckpoint(`Checked ${label}`);
     iteration!.delivered = checkScope(iteration!.delivered, sheet, scope);
+    track('bulk_check', { scope: scope.kind });
     scheduleSave();
   }
 
@@ -148,6 +150,7 @@
     const it = iteration!;
     recordCheckpoint('Before Excel import');
     it.delivered = mergeDelivered(it.delivered, imported);
+    track('import_completed');
     scheduleSave();
   }
 

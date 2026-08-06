@@ -48,6 +48,7 @@ beforeEach(() => {
   session.mode = 'local';
   session.backend = new LocalBackend();
   session.user = null;
+  session.pro = false;
 });
 afterEach(() => vi.restoreAllMocks());
 

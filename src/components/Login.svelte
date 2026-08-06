@@ -1,16 +1,28 @@
 <script lang="ts">
   import { session } from '../lib/session.svelte';
 
+  let mode = $state<'signin' | 'register'>('signin');
   let email = $state('');
   let password = $state('');
   let busy = $state(false);
+
+  const registering = $derived(mode === 'register');
 
   async function submit(e: Event) {
     e.preventDefault();
     if (busy) return;
     busy = true;
-    await session.signIn(email, password);
+    if (registering) {
+      await session.signUp(email, password);
+    } else {
+      await session.signIn(email, password);
+    }
     busy = false;
+  }
+
+  function toggleMode() {
+    mode = registering ? 'signin' : 'register';
+    session.authError = null;
   }
 
   function useOffline() {
@@ -27,6 +39,15 @@
     </div>
 
     {#if session.firebaseAvailable}
+      {#if registering}
+        <p class="pricing" role="note">
+          <strong>💳 Cloud sync is a paid Pro subscription.</strong>
+          Creating an account is free, and offline tracking is always free. You’ll only be asked
+          to pay if you choose to subscribe to Pro (syncing your playthroughs across devices)
+          <em>after</em> signing up.
+        </p>
+      {/if}
+
       <form onsubmit={submit} class="form">
         <label>
           <span class="lbl">Email</span>
@@ -44,7 +65,7 @@
           <input
             class="input"
             type="password"
-            autocomplete="current-password"
+            autocomplete={registering ? 'new-password' : 'current-password'}
             bind:value={password}
             placeholder="••••••••"
             required
@@ -56,9 +77,23 @@
         {/if}
 
         <button class="btn" type="submit" disabled={busy}>
-          {busy ? 'Signing in…' : 'Sign In'}
+          {#if registering}
+            {busy ? 'Creating account…' : 'Create free account'}
+          {:else}
+            {busy ? 'Signing in…' : 'Sign In'}
+          {/if}
         </button>
       </form>
+
+      <p class="switch">
+        {#if registering}
+          Already have an account?
+          <button type="button" class="link" onclick={toggleMode}>Sign in</button>
+        {:else}
+          New here?
+          <button type="button" class="link" onclick={toggleMode}>Create an account</button>
+        {/if}
+      </p>
 
       <div class="divider"><span>or</span></div>
     {:else}
@@ -73,7 +108,8 @@
     </button>
 
     <p class="foot faint">
-      Accounts are created by the owner in the Firebase console. There is no public sign-up.
+      Offline mode keeps everything on this device. A free account plus Pro unlocks cloud sync
+      across your devices.
     </p>
   </div>
 </div>
@@ -161,6 +197,36 @@
     font-size: 0.86rem;
     color: var(--text-dim);
     margin: 0 0 1rem;
+  }
+  .pricing {
+    background: #16233a;
+    border: 1px solid #2c4a6b;
+    border-radius: 8px;
+    padding: 0.7rem 0.85rem;
+    font-size: 0.84rem;
+    color: var(--text-dim);
+    line-height: 1.45;
+    margin: 0 0 1rem;
+  }
+  .pricing strong {
+    display: block;
+    color: var(--text);
+    margin-bottom: 0.2rem;
+  }
+  .switch {
+    text-align: center;
+    font-size: 0.84rem;
+    color: var(--text-dim);
+    margin: 0.9rem 0 0;
+  }
+  .link {
+    background: none;
+    border: none;
+    color: var(--accent-2);
+    cursor: pointer;
+    font: inherit;
+    padding: 0;
+    text-decoration: underline;
   }
   .offline {
     width: 100%;
