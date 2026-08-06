@@ -264,6 +264,134 @@ describe('TrackerView', () => {
     });
   });
 
+  describe('mobile card view', () => {
+    const realMatchMedia = window.matchMedia;
+    afterEach(() => {
+      window.matchMedia = realMatchMedia; // restore the desktop default
+    });
+
+    // A controllable matchMedia: starts matched (mobile) and lets a test flip
+    // the viewport and fire the change listener the component subscribes to.
+    let matches = true;
+    let listener: (() => void) | null = null;
+    function useMobile() {
+      matches = true;
+      listener = null;
+      window.matchMedia = ((query: string) => ({
+        get matches() {
+          return matches;
+        },
+        media: query,
+        onchange: null,
+        addEventListener: (_e: string, cb: () => void) => (listener = cb),
+        removeEventListener: () => (listener = null),
+        addListener() {},
+        removeListener() {},
+        dispatchEvent: () => false
+      })) as unknown as typeof window.matchMedia;
+    }
+    function resizeTo(isNarrow: boolean) {
+      matches = isNarrow;
+      listener?.();
+    }
+
+    /** Expand a card by its (unique) material name text. */
+    async function openCard(name: string) {
+      const head = screen.getByText(name).closest('button');
+      await fireEvent.click(head!);
+    }
+
+    it('renders the searchable card list instead of the grid', async () => {
+      useMobile();
+      const id = await makeIteration();
+      render(TrackerView, { props: { iterationId: id, onBack: vi.fn() } });
+      // Sheet switcher + search present; no grid tab strip.
+      expect(await screen.findByLabelText('Search Inventory Tracker')).toBeInTheDocument();
+      expect(screen.queryByRole('columnheader')).not.toBeInTheDocument();
+      // A material appears as a card.
+      expect(screen.getByText('Alligator Skin')).toBeInTheDocument();
+    });
+
+    it('autosaves a delivery made from a card stepper', async () => {
+      useMobile();
+      const id = await makeIteration();
+      const spy = vi.spyOn(session.backend!, 'saveProgress');
+      render(TrackerView, { props: { iterationId: id, onBack: vi.fn() } });
+      await screen.findByLabelText('Search Inventory Tracker');
+      // Expand the Alligator Skin card, then bump a stepper.
+      await openCard('Alligator Skin');
+      await fireEvent.click(screen.getByLabelText('Increase Alligator Skin — Camp delivered'));
+      expect(screen.getByText('Saving…')).toBeInTheDocument();
+      await waitFor(() => expect(spy).toHaveBeenCalled());
+    });
+
+    it('switches sheets through the bottom-sheet picker', async () => {
+      useMobile();
+      const id = await makeIteration();
+      render(TrackerView, { props: { iterationId: id, onBack: vi.fn() } });
+      await screen.findByLabelText('Search Inventory Tracker');
+      // Open the picker and choose Camp Improvements.
+      await fireEvent.click(screen.getByText('Inventory Tracker').closest('button')!);
+      const dialog = await screen.findByRole('dialog', { name: 'Jump to a sheet' });
+      await fireEvent.click(within(dialog).getByRole('button', { name: /Camp Improvements/ }));
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Jump to a sheet' })).not.toBeInTheDocument()
+      );
+      expect(screen.getByLabelText('Search Camp Improvements')).toBeInTheDocument();
+    });
+
+    it('marks a whole card collected via the row check flow', async () => {
+      useMobile();
+      const id = await makeIteration();
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      render(TrackerView, { props: { iterationId: id, onBack: vi.fn() } });
+      await screen.findByLabelText('Search Inventory Tracker');
+      await openCard('Alligator Skin');
+      await fireEvent.click(screen.getByRole('button', { name: 'Mark all collected' }));
+      // The row-check records an undoable checkpoint (shared with the grid flow).
+      expect(await screen.findByRole('button', { name: /History \(1\)/ })).toBeInTheDocument();
+    });
+
+    it('opens the history panel from a card reset', async () => {
+      useMobile();
+      const id = await makeIteration();
+      render(TrackerView, { props: { iterationId: id, onBack: vi.fn() } });
+      await screen.findByLabelText('Search Inventory Tracker');
+      await openCard('Alligator Skin');
+      await fireEvent.click(screen.getByRole('button', { name: 'Reset…' }));
+      expect(await screen.findByRole('dialog', { name: 'Change history' })).toBeInTheDocument();
+    });
+
+    it('dismisses the sheet picker via the backdrop', async () => {
+      useMobile();
+      const id = await makeIteration();
+      render(TrackerView, { props: { iterationId: id, onBack: vi.fn() } });
+      await screen.findByLabelText('Search Inventory Tracker');
+      await fireEvent.click(screen.getByText('Inventory Tracker').closest('button')!);
+      await screen.findByRole('dialog', { name: 'Jump to a sheet' });
+      await fireEvent.click(screen.getByLabelText('Close sheet switcher'));
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Jump to a sheet' })).not.toBeInTheDocument()
+      );
+    });
+
+    it('swaps to the grid when the viewport widens past the breakpoint', async () => {
+      useMobile();
+      const id = await makeIteration();
+      render(TrackerView, { props: { iterationId: id, onBack: vi.fn() } });
+      await screen.findByLabelText('Search Inventory Tracker');
+      // Widen: the media listener fires and the grid replaces the card list.
+      resizeTo(false);
+      // The grid tab strip (with a Camp Improvements tab that never exists in the
+      // card view) appears; the card search box is gone. The grid remounts ~800
+      // cells, so allow a generous poll window.
+      expect(
+        await screen.findByRole('button', { name: /Camp Improvements/ }, { timeout: 8000 })
+      ).toBeInTheDocument();
+      expect(screen.queryByLabelText('Search Inventory Tracker')).not.toBeInTheDocument();
+    });
+  });
+
   describe('bulk check + history', () => {
     it('checks a whole row after confirmation and records history', async () => {
       const id = await makeIteration();

@@ -56,6 +56,7 @@ src/
     seed.ts         AUTO-GENERATED sheet template from the spreadsheet — do not hand-edit
     compute.ts      delivered/required math, row + sheet totals
     grid.ts         Grid column layout + status derivation (pure)
+    cardlist.ts     Mobile card list: rows→cards, search/filter/status (pure)
     freeze.ts       Freeze-pane set logic + sticky offset math (pure)
     ids.ts          Id generation
     title.ts        Title normalisation / input sanitisation
@@ -214,6 +215,17 @@ don't blanket-disable them — justify any `svelte-ignore` inline.
 The app is used on phones as much as desktop, so **mobile must be a
 first-class target, never an afterthought.** Keep these invariants:
 
+- **Card view on phones, grid on desktop** — below `640px` the tracker renders
+  a purpose-built **card list** (`SheetCards` + `SheetCard`, logic in
+  `cardlist.ts`) instead of the wide grid: a search box, status filter chips
+  (All / To collect / In progress / Done) and one tap-to-expand card per row
+  whose per-use amounts are edited with the same `CellInput` steppers. Sheets
+  are switched from a **bottom-sheet picker** (`SheetPicker`), not the
+  horizontal tab strip. `TrackerView` chooses the view via a
+  `matchMedia('(max-width: 640px)')` watcher; both call the same
+  check/reset/history/save paths. This means the grid's sticky panes are a
+  **desktop-only** concern — the iOS sticky invariants below still guard the
+  grid, but phones sidestep them entirely by not rendering it.
 - **Real viewport units** — the app shell uses `100dvh` (with a `100vh`
   fallback) so it isn't clipped behind mobile browser chrome. Don't reintroduce
   bare `100vh` for full-height layout.
@@ -241,9 +253,11 @@ first-class target, never an afterthought.** Keep these invariants:
   since the save pill and mode pill already convey state); multi-control forms
   stack instead of squeezing. Breakpoint convention: `@media (max-width: 640px)`
   for layout, `@media (pointer: coarse)` for touch ergonomics.
-- **Testing** — the Playwright suite runs every e2e test under a `mobile-chrome`
-  (Pixel 5) project as well as desktop, and `e2e/mobile.spec.ts` asserts the
-  mobile-specific invariants (no horizontal page scroll, usable steppers). Keep
+- **Testing** — the desktop `chromium` Playwright project runs the full suite
+  (the grid journeys in `offline-flow`/`import`); the `mobile-chrome` (Pixel 5)
+  project runs `e2e/mobile.spec.ts`, which drives the phone card view (searchable
+  list, bottom-sheet sheet switcher, tap-to-expand steppers) and asserts the
+  mobile invariants (no horizontal page scroll, finger-sized tap targets). Keep
   both green.
 
 ## Security (ISO/IEC 27001 / 27002)

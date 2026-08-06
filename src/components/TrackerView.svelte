@@ -1,7 +1,7 @@
 <script lang="ts">
   import { session } from '../lib/session.svelte';
   import { SHEETS } from '../lib/seed';
-  import { sheetProgress } from '../lib/compute';
+  import { sheetProgress, setDelivered } from '../lib/compute';
   import { formatShort } from '../lib/format';
   import { checkScope, restoreScope, scopeLabel, pushHistory, type Scope } from '../lib/history';
   import { generateId } from '../lib/ids';
@@ -9,6 +9,8 @@
   import { mergeDelivered } from '../lib/sync';
   import { track } from '../lib/analytics';
   import SheetGrid from './SheetGrid.svelte';
+  import SheetCards from './SheetCards.svelte';
+  import SheetPicker from './SheetPicker.svelte';
   import HistoryPanel from './HistoryPanel.svelte';
   import ImportButton from './ImportButton.svelte';
 
@@ -180,6 +182,25 @@
     return sheetProgress(s, iteration!.delivered);
   }
 
+  // --- Mobile card view: on narrow screens the wide grid is replaced by a
+  // searchable card list, and the tab strip by a bottom-sheet switcher. ---
+  let narrow = $state(false);
+  let pickerOpen = $state(false);
+
+  $effect(() => {
+    const mq = window.matchMedia('(max-width: 640px)');
+    narrow = mq.matches;
+    const onChange = () => (narrow = mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  });
+
+  // A card stepper edited one tracked cell; write it through the same immutable
+  // update + autosave path the grid uses.
+  function onCardDeliver(rowId: string, colKey: string, value: number) {
+    onDeliveredChange(setDelivered(iteration!.delivered, active.id, rowId, colKey, value));
+  }
+
   const fmt = formatShort;
 </script>
 
@@ -234,29 +255,62 @@
     {#if error}
       <p class="inline-err" role="alert">{error}</p>
     {/if}
-    <nav class="tabs">
-      {#each SHEETS as s (s.id)}
-        {@const p = progressFor(s.id)}
-        <button
-          class="tab"
-          class:active={s.id === activeSheet}
-          class:done={p.have >= p.needed}
-          onclick={() => (activeSheet = s.id)}
-        >
-          <span class="tab-label">{s.title}</span>
-          <span class="tab-badge">{p.percent}%</span>
-        </button>
-      {/each}
-    </nav>
+    {#if narrow}
+      {@const ap = progressFor(active.id)}
+      <button class="sheet-switch" onclick={() => (pickerOpen = true)}>
+        <span class="ss-label">Sheet</span>
+        <span class="ss-name">{active.title}</span>
+        <span class="ss-pct">{ap.percent}%</span>
+        <span class="ss-chev" aria-hidden="true">▾</span>
+      </button>
 
-    <SheetGrid
-      sheet={active}
-      delivered={iteration.delivered}
-      freeze={iteration.freeze}
-      onDelivered={onDeliveredChange}
-      onFreeze={onFreezeChange}
-      onCheck={(scope) => requestCheck(active, scope)}
-      onReset={requestReset}
+      {#key active.id}
+        <SheetCards
+          sheet={active}
+          delivered={iteration.delivered}
+          onDeliver={onCardDeliver}
+          onCheck={(rowId) => requestCheck(active, { kind: 'row', rowId })}
+          onReset={(rowId) => requestReset({ kind: 'row', rowId })}
+        />
+      {/key}
+    {:else}
+      <nav class="tabs">
+        {#each SHEETS as s (s.id)}
+          {@const p = progressFor(s.id)}
+          <button
+            class="tab"
+            class:active={s.id === activeSheet}
+            class:done={p.have >= p.needed}
+            onclick={() => (activeSheet = s.id)}
+          >
+            <span class="tab-label">{s.title}</span>
+            <span class="tab-badge">{p.percent}%</span>
+          </button>
+        {/each}
+      </nav>
+
+      <SheetGrid
+        sheet={active}
+        delivered={iteration.delivered}
+        freeze={iteration.freeze}
+        onDelivered={onDeliveredChange}
+        onFreeze={onFreezeChange}
+        onCheck={(scope) => requestCheck(active, scope)}
+        onReset={requestReset}
+      />
+    {/if}
+  {/if}
+
+  {#if pickerOpen && iteration}
+    <SheetPicker
+      sheets={SHEETS}
+      activeId={activeSheet}
+      {progressFor}
+      onSelect={(id) => {
+        activeSheet = id;
+        pickerOpen = false;
+      }}
+      onClose={() => (pickerOpen = false)}
     />
   {/if}
 
@@ -366,6 +420,46 @@
     color: #e88b74;
     font-size: 0.85rem;
   }
+  /* Mobile sheet switcher trigger (opens the bottom-sheet picker). */
+  .sheet-switch {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    background: #1b140d;
+    border: none;
+    border-bottom: 1px solid var(--line-soft);
+    color: var(--text);
+    padding: 0.65rem 0.85rem;
+    font-family: var(--font-ui);
+    text-align: left;
+  }
+  .ss-label {
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .ss-name {
+    flex: 1;
+    font-weight: 700;
+    font-size: 0.98rem;
+    color: var(--accent-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ss-pct {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .ss-chev {
+    color: var(--text-dim);
+    font-size: 0.7rem;
+  }
+
   .tabs {
     display: flex;
     gap: 0.25rem;

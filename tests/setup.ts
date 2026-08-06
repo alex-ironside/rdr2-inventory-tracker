@@ -45,6 +45,24 @@ function installStorage(name: 'localStorage' | 'sessionStorage'): void {
 installStorage('localStorage');
 installStorage('sessionStorage');
 
+// jsdom has no matchMedia. Default to the desktop branch (matches: false) so
+// existing grid-based tests are unaffected; tests exercising the mobile card
+// view override window.matchMedia to report a match.
+if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
+  window.matchMedia = ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener() {},
+    removeEventListener() {},
+    addListener() {},
+    removeListener() {},
+    dispatchEvent() {
+      return false;
+    }
+  })) as unknown as typeof window.matchMedia;
+}
+
 // jsdom lacks requestAnimationFrame timing guarantees; provide a deterministic
 // shim so grid measurement effects run synchronously in tests.
 if (typeof globalThis.requestAnimationFrame !== 'function') {

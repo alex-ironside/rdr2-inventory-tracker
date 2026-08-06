@@ -22,6 +22,15 @@ test.beforeEach(async ({ page }) => {
   await page.reload();
 });
 
+/** Create a fresh offline playthrough and land on the tracker. */
+async function openTracker(page: import('@playwright/test').Page, title: string) {
+  await page.getByRole('button', { name: /Continue offline/i }).click();
+  await page.getByPlaceholder(/New playthrough title/i).fill(title);
+  await page.getByRole('button', { name: /New Playthrough/i }).click();
+  // On a phone the tracker opens in the card view (no sideways-scrolling grid).
+  await expect(page.getByLabel('Search Inventory Tracker')).toBeVisible();
+}
+
 test('the whole offline journey fits the phone viewport without sideways scroll', async ({
   page
 }) => {
@@ -34,56 +43,84 @@ test('the whole offline journey fits the phone viewport without sideways scroll'
   await expect(page.getByRole('heading', { name: 'Your Playthroughs' })).toBeVisible();
   await expectNoHorizontalPageScroll(page);
 
-  // Tracker view (the widest screen — the table scrolls, the page must not).
+  // Tracker view. On a phone this is the card list, not the wide grid, so there
+  // is nothing to scroll sideways in the first place.
   await page.getByPlaceholder(/New playthrough title/i).fill('Mobile Run');
   await page.getByRole('button', { name: /New Playthrough/i }).click();
-  await expect(page.getByRole('button', { name: /Inventory Tracker/ })).toBeVisible();
+  await expect(page.getByLabel('Search Inventory Tracker')).toBeVisible();
   await expectNoHorizontalPageScroll(page);
 });
 
-test('a pinned material column stays put while the grid scrolls, and the page never scrolls sideways', async ({
+test('the phone shows the searchable card list instead of the grid', async ({ page }) => {
+  await openTracker(page, 'Card View');
+
+  // The wide grid (and its horizontally-scrolling region) is not rendered on a
+  // phone — that whole class of sideways-scroll / sticky-pane problem is gone.
+  await expect(page.locator('.scroll')).toHaveCount(0);
+  await expect(page.locator('table')).toHaveCount(0);
+
+  // Search narrows the list to a single material. Match the card name exactly
+  // so the locator doesn't also resolve the enclosing card button (whose text
+  // includes the name plus the count and status).
+  await page.getByLabel('Search Inventory Tracker').fill('Alligator');
+  await expect(page.getByText('Alligator Skin', { exact: true })).toBeVisible();
+  await expectNoHorizontalPageScroll(page);
+});
+
+test('switching sheets uses the bottom-sheet picker, not a horizontal tab strip', async ({
   page
 }) => {
-  await page.getByRole('button', { name: /Continue offline/i }).click();
-  await page.getByPlaceholder(/New playthrough title/i).fill('Sticky Panes');
-  await page.getByRole('button', { name: /New Playthrough/i }).click();
-  await expect(page.getByRole('button', { name: /Inventory Tracker/ })).toBeVisible();
+  await openTracker(page, 'Sheet Switch');
 
-  // The material column is unpinned by default; its stickiness is freeze-toggle
-  // driven. Pin it via the header's freeze control so sticky is active.
-  await page.getByRole('button', { name: /Freeze column Material/ }).first().click();
+  // Open the picker from the current-sheet button and jump to another sheet.
+  await page.getByRole('button', { name: /Sheet Inventory Tracker/ }).click();
+  const picker = page.getByRole('dialog', { name: 'Jump to a sheet' });
+  await expect(picker).toBeVisible();
+  await picker.getByRole('button', { name: /Camp Improvements/ }).click();
 
-  // Scroll the grid all the way to the right — only the grid's own region may
-  // scroll; the pinned material/header column must stay pinned to that region's
-  // left edge (the iOS regression made it detach and overlay the data). This
-  // guards the removal of `-webkit-overflow-scrolling: touch`, which breaks
-  // `position: sticky` inside a scroll container on iOS Safari.
-  await page.evaluate(() => {
-    const s = document.querySelector('.scroll') as HTMLElement;
-    s.scrollLeft = s.scrollWidth;
-  });
-
-  const { pinnedDelta } = await page.evaluate(() => {
-    const region = document.querySelector('.scroll')!.getBoundingClientRect();
-    const rowhead = document.querySelector('th.rowhead')!.getBoundingClientRect();
-    return { pinnedDelta: Math.abs(rowhead.left - region.left) };
-  });
-  // The row header hugs the left edge of the scroll region (a few px of border
-  // slack), i.e. `position: sticky` is honoured.
-  expect(pinnedDelta).toBeLessThanOrEqual(4);
-
-  // And scrolling the grid never widened the page itself.
+  await expect(page.getByLabel('Search Camp Improvements')).toBeVisible();
   await expectNoHorizontalPageScroll(page);
 });
 
-test('cell steppers are large enough to tap and work on touch', async ({ page }) => {
-  await page.getByRole('button', { name: /Continue offline/i }).click();
-  await page.getByPlaceholder(/New playthrough title/i).fill('Tap Targets');
-  await page.getByRole('button', { name: /New Playthrough/i }).click();
-  await expect(page.getByRole('button', { name: /Inventory Tracker/ })).toBeVisible();
+test('the full card list renders every card at full height (no flex squish)', async ({ page }) => {
+  // Regression: `.list` is a scrolling flex column. Its card children must not
+  // flex-shrink — with the whole (unfiltered) inventory rendered, the flex
+  // algorithm was collapsing each collapsed card to a ~2px hairline (cards use
+  // `overflow: hidden`, so their flex min-size resolved to 0). The items were
+  // effectively invisible and un-tappable. The earlier tests always searched to
+  // a single card first, so the many-items squish never showed up.
+  await openTracker(page, 'Full List');
 
-  const row = page.locator('tr', { hasText: 'Alligator Skin' }).first();
-  const inc = row.getByRole('button', { name: /Increase Alligator Skin — Satchels delivered/ });
+  // The unfiltered inventory has dozens of cards; assert the first several keep
+  // a real, tappable height rather than being squished to a sliver.
+  const cards = page.locator('.mat-card');
+  expect(await cards.count()).toBeGreaterThan(10);
+
+  const heights = await cards.evaluateAll((els) =>
+    els.slice(0, 6).map((el) => Math.round(el.getBoundingClientRect().height))
+  );
+  for (const h of heights) {
+    expect(h).toBeGreaterThanOrEqual(60);
+  }
+
+  // And a card far down the list is reachable by scrolling and can be expanded
+  // to edit its steppers — i.e. the list genuinely scrolls to its content.
+  const target = cards.nth(20);
+  await target.scrollIntoViewIfNeeded();
+  await expect(target).toBeVisible();
+  await expectNoHorizontalPageScroll(page);
+});
+
+test('card steppers are large enough to tap and work on touch', async ({ page }) => {
+  await openTracker(page, 'Tap Targets');
+
+  await page.getByLabel('Search Inventory Tracker').fill('Alligator');
+  const card = page.locator('.mat-card', { hasText: 'Alligator Skin' });
+  // Tap the card name (exact, to avoid also matching the enclosing button) to
+  // expand its per-use steppers.
+  await card.getByText('Alligator Skin', { exact: true }).tap();
+
+  const inc = card.getByRole('button', { name: /Increase Alligator Skin — Satchels delivered/ });
 
   // Finger-sized: at least ~38px in both dimensions (matches the 2.4rem
   // coarse-pointer sizing in CellInput).
@@ -95,6 +132,6 @@ test('cell steppers are large enough to tap and work on touch', async ({ page })
   // And it still functions via a real tap.
   await inc.tap();
   await expect(
-    row.getByRole('spinbutton', { name: /Alligator Skin — Satchels delivered/ })
+    card.getByRole('spinbutton', { name: /Alligator Skin — Satchels delivered/ })
   ).toHaveValue('1');
 });
