@@ -43,8 +43,13 @@ service cloud.firestore {
     }
 
     match /iterations/{iterationId} {
-      // Owner may always read their own data (even after a downgrade).
-      allow read: if ownsExisting();
+      // Owner may always read their own data (even after a downgrade). A `get`
+      // of a non-existent doc has a null `resource`; a signed-in user may read
+      // that (it returns null, leaking nothing — another user's *existing* doc
+      // still fails the owner check) so the sync merge can probe "does a cloud
+      // copy exist?" (see sync.ts). Access still requires auth: an anonymous
+      // caller is denied even for a missing doc.
+      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
 
       // Writing (cloud sync) is Pro-only.
       allow create: if isPro() && validNewIteration(request.resource.data);

@@ -190,6 +190,17 @@ Test-first, and **behavioural/integration over unit** wherever practical:
   user journey with the real session store and real localStorage.
 - **End-to-end** (`e2e/`, Playwright) — the full flow in a real browser
   (desktop + mobile Chromium), offline mode, across a real reload.
+- **Cloud end-to-end** (`e2e/cloud-sync.spec.ts`) — the Pro / cloud-sync journey
+  against the real **Firebase Auth + Firestore emulators** and the real
+  `firestore.rules`: Pro sign-in + cloud CRUD round-trip, offline→cloud sync,
+  free-user stays local (never writes to the cloud), and GDPR account deletion.
+  Run with `npm run e2e:cloud` (needs Java for the Firestore emulator; the script
+  wraps Playwright in `firebase emulators:exec`). The build is wired to the
+  emulators via `--mode emulator` (config in `e2e/emulator-env/`, throwaway demo
+  values), and users are seeded with a real `stripeRole` claim through the Admin
+  SDK so the Pro gate is exercised, not bypassed. The default `npm run e2e` never
+  touches the emulators. (Running locally, prefix `CI=1` so Playwright uses its
+  managed Chromium instead of the Linux `executablePath`.)
 
 Do **not** write tests that only exist to raise coverage. If a line can't be
 covered by a meaningful test, it usually shouldn't exist.

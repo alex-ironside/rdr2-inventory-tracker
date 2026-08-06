@@ -6,13 +6,20 @@
 // Firebase Auth, not by hiding these values. See firestore.rules.
 
 import { initializeApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, type Auth } from 'firebase/auth';
+import { getAuth, connectAuthEmulator, type Auth } from 'firebase/auth';
 import {
   initializeFirestore,
+  connectFirestoreEmulator,
   persistentLocalCache,
   persistentMultipleTabManager,
   type Firestore
 } from 'firebase/firestore';
+
+// E2E only: point the SDK at the local Firebase emulators instead of the real
+// project. Enabled by the emulator build (VITE_FIREBASE_EMULATOR=1); the guard
+// is a compile-time constant in every other build, so this and the two
+// connect* imports are tree-shaken out of production bundles.
+const USE_EMULATOR = import.meta.env.VITE_FIREBASE_EMULATOR === '1';
 
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -53,7 +60,12 @@ export function getFirebaseApp(): FirebaseApp {
 }
 
 export function getFirebaseAuth(): Auth {
-  if (!authInstance) authInstance = getAuth(ensureApp());
+  if (!authInstance) {
+    authInstance = getAuth(ensureApp());
+    if (USE_EMULATOR) {
+      connectAuthEmulator(authInstance, 'http://127.0.0.1:9099', { disableWarnings: true });
+    }
+  }
   return authInstance;
 }
 
@@ -64,6 +76,7 @@ export function getDb(): Firestore {
     dbInstance = initializeFirestore(ensureApp(), {
       localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
     });
+    if (USE_EMULATOR) connectFirestoreEmulator(dbInstance, '127.0.0.1', 8080);
   }
   return dbInstance;
 }

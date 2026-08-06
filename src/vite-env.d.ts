@@ -13,6 +13,8 @@ interface ImportMetaEnv {
   readonly VITE_STRIPE_PRICE_ID?: string;
   /** Dev-only: force the Pro path when running a dev build (see session). */
   readonly VITE_DEV_FORCE_PRO?: string;
+  /** E2E only: point the SDK at the local Firebase emulators (see firebase.ts). */
+  readonly VITE_FIREBASE_EMULATOR?: string;
 }
 
 interface ImportMeta {

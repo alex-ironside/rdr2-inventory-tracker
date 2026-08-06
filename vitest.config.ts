@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig, configDefaults } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { svelteTesting } from '@testing-library/svelte/vite';
 
@@ -9,6 +9,9 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./tests/setup.ts'],
     include: ['tests/**/*.{test,spec}.{ts,js}'],
+    // Firestore security-rules tests need the emulators + network; they run
+    // separately via `npm run test:rules` (vitest.rules.config.ts), not here.
+    exclude: [...configDefaults.exclude, 'tests/rules/**'],
     // The main inventory sheet renders ~800 cell components; under coverage
     // instrumentation a full render + debounce cycle can exceed the 5s default.
     testTimeout: 30000,

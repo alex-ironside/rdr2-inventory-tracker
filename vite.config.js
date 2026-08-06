@@ -9,8 +9,12 @@ const base = process.env.BASE_PATH ?? '/';
 
 // Static SPA build → deployed to GitHub Pages (primary) or Firebase Hosting.
 // The PWA plugin generates a service worker (offline app shell) + web manifest.
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   base,
+  // The emulator e2e build (`--mode emulator`) loads its Firebase config from an
+  // isolated dir so a developer's real `.env.local` can't override it — keeping
+  // local and CI runs identical (both talk only to the local emulators).
+  envDir: mode === 'emulator' ? './e2e/emulator-env' : undefined,
   plugins: [
     svelte(),
     VitePWA({
@@ -48,4 +52,4 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true
   }
-});
+}));

@@ -2,14 +2,17 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const initializeApp = vi.fn(() => ({ __app: true }));
 const getAuth = vi.fn(() => ({ __auth: true }));
+const connectAuthEmulator = vi.fn();
 const initializeFirestore = vi.fn(() => ({ __db: true }));
+const connectFirestoreEmulator = vi.fn();
 const persistentLocalCache = vi.fn(() => ({ __cache: true }));
 const persistentMultipleTabManager = vi.fn(() => ({ __tabs: true }));
 
 vi.mock('firebase/app', () => ({ initializeApp }));
-vi.mock('firebase/auth', () => ({ getAuth }));
+vi.mock('firebase/auth', () => ({ getAuth, connectAuthEmulator }));
 vi.mock('firebase/firestore', () => ({
   initializeFirestore,
+  connectFirestoreEmulator,
   persistentLocalCache,
   persistentMultipleTabManager
 }));
@@ -72,5 +75,22 @@ describe('firebase (configured)', () => {
     // Firestore initialised with persistent offline cache.
     expect(persistentLocalCache).toHaveBeenCalledOnce();
     expect(persistentMultipleTabManager).toHaveBeenCalledOnce();
+    // No emulator wiring unless explicitly enabled.
+    expect(connectAuthEmulator).not.toHaveBeenCalled();
+    expect(connectFirestoreEmulator).not.toHaveBeenCalled();
+  });
+
+  it('wires auth + firestore to the local emulators when VITE_FIREBASE_EMULATOR=1', async () => {
+    stubConfig();
+    vi.stubEnv('VITE_FIREBASE_EMULATOR', '1');
+    const mod = await import('../src/lib/firebase');
+
+    const auth = mod.getFirebaseAuth();
+    const db = mod.getDb();
+
+    expect(connectAuthEmulator).toHaveBeenCalledWith(auth, 'http://127.0.0.1:9099', {
+      disableWarnings: true
+    });
+    expect(connectFirestoreEmulator).toHaveBeenCalledWith(db, '127.0.0.1', 8080);
   });
 });
